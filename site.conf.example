@@ -1,0 +1,36 @@
+# ---------------------------------------------------------------------------
+# site.conf -- machine-local paths for the ecmc training course.
+#
+#   cp site.conf.example site.conf   and edit to match this host.
+#
+# site.conf is gitignored: this repo is portable, your paths are not.
+# Every script in the course sources it, so it is the single place where
+# "where things live on this machine" is written down.
+# ---------------------------------------------------------------------------
+
+# --- EPICS ------------------------------------------------------------------
+# Base version directory, e.g. /epics/base/7.0.7
+EPICS_BASE=/epics/base/7.0.7
+
+# Module tree for this base version, e.g. /epics/modules/7.0.7
+EPICS_MODULES=/epics/modules/7.0.7
+
+# Usually auto-detected from $EPICS_BASE/startup/EpicsHostArch; override if needed.
+#EPICS_HOST_ARCH=linux-x86_64
+
+# --- Source checkouts -------------------------------------------------------
+# Where you cloned the upstream repositories. These are read, never modified.
+ECMC_SRC=/home/epics/src/ecmc
+ECMCCFG_SRC=/home/epics/src/ecmccfg
+
+# --- EtherCAT ---------------------------------------------------------------
+# Etherlab master installation (provides libethercat and the `ethercat` CLI)
+ETHERLAB=/opt/etherlab
+
+# --- Course workspace -------------------------------------------------------
+# Where stage-ecmccfg.sh writes the flattened ecmccfg install.
+# Must be writable. Defaults to <training repo>/stage.
+#ECMCCFG_STAGE=/var/lib/ecmc-training/stage
+
+# EPICS prefix for the PVs created by the course IOCs.
+IOC_PREFIX=TRAIN

@@ -1,69 +1,21 @@
-# Prerequisites
-*.d
+# site-local paths, never committed
+site.conf
+configure/RELEASE.local
+**/configure/RELEASE.local
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# EPICS build output
+bin/
+lib/
+dbd/
+db/
+include/
+O.*/
+envPaths
 
-# Precompiled Headers
-*.gch
-*.pch
+# staged ecmccfg install (regenerate with 00-bootstrap/stage-ecmccfg.sh)
+stage/
 
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Build directories
-build/
-Build/
-build-*/
-
-# CMake generated files
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-install_manifest.txt
-compile_commands.json
-
-# Temporary files
-*.tmp
-*.log
-*.bak
+# editor / OS
 *.swp
-
-# vcpkg
-vcpkg_installed/
-
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
+*~
+.DS_Store

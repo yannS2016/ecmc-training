@@ -1,0 +1,9 @@
+# CONFIG_SITE -- build settings for the ecmc training IOC.
+#
+# Module paths live in RELEASE / RELEASE.local, not here.
+
+# Fail the build if a path in RELEASE does not exist. Keep this on: a typo in
+# RELEASE.local otherwise shows up as a confusing link error much later.
+CHECK_RELEASE = YES
+
+-include $(TOP)/configure/CONFIG_SITE.local
