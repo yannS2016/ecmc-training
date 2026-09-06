@@ -215,6 +215,8 @@ sudo systemctl reload NetworkManager
 ## 7. Configure the master
 
 ```bash
+# Either edit by hand (below), or apply the tracked settings:
+#     cd config && ./apply-config.sh --dry-run && sudo ./apply-config.sh
 sudo cp /etc/ethercat.conf /etc/ethercat.conf.orig
 sudo vi /etc/ethercat.conf
 ```
@@ -503,6 +505,7 @@ being clean — both checked in §2.
 ## Reference
 
 - `BUILD.md` — compatibility rules and requirements, in depth
+- `config/` — the site configuration, version controlled, applied by `apply-config.sh`
 - `../00-bootstrap/VERIFY.md` — what a working phase-00 training IOC looks like
 - Upstream handbook: <https://gitlab.com/etherlab.org/ethercat/-/jobs/artifacts/stable-1.6/raw/pdf/ethercat_doc.pdf?job=pdf>
 - Device driver support table: <https://docs.etherlab.org/ethercat/1.6/doxygen/devicedrivers.html>

@@ -1,0 +1,10 @@
+# udev rule for the EtherCAT character devices.
+#
+# Deliberately NOT the MODE="0664" that upstream INSTALL.md suggests "to give
+# normal users reading access". The same character device backs
+# `ethercat download`, `ethercat sii_write` and `ethercat foe_write`, which can
+# reconfigure a drive or brick a slave's EEPROM. Read access is not a lesser
+# privilege here, so the device is group-owned instead of world-readable.
+#
+# Install to: /etc/udev/rules.d/99-EtherCAT.rules
+KERNEL=="EtherCAT[0-9]*", MODE="0660", GROUP="ethercat"
