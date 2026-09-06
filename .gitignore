@@ -1,6 +1,8 @@
 # site-local paths, never committed
 site.conf
 configure/RELEASE.local
+ecmcPaths.cmd
+**/ecmcPaths.cmd
 **/configure/RELEASE.local
 
 # EPICS build output
