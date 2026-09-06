@@ -202,14 +202,14 @@ if [[ -f "$el/include/ecrt.h" ]]; then
 else
   fail "no $el/include/ecrt.h"
   why  "ecmc compiles against the Etherlab realtime interface."
-  why  "Install it: 00-bootstrap/INSTALL-ethercat-master.md"
+  why  "Install it: ethercatmaster/INSTALL.md"
 fi
 
 if ls "$el"/lib/libethercat.* >/dev/null 2>&1; then
   pass "libethercat at $el/lib"
 else
   fail "no libethercat in $el/lib"
-  why  "Built by 'configure --enable-userlib' -- INSTALL-ethercat-master.md step 3."
+  why  "Built by 'configure --enable-userlib' -- ethercatmaster/INSTALL.md step 3."
 fi
 
 ec_tool="$el/bin/ethercat"
@@ -230,13 +230,13 @@ if [[ -n "$ec_tool" && -x "$ec_tool" ]]; then
   else
     warn "EtherCAT master not responding"
     why  "Check: systemctl status ethercat   /   lsmod | grep ec_"
-    why  "A kernel update invalidates the module -- INSTALL-ethercat-master.md sec 12."
+    why  "A kernel update invalidates the module -- ethercatmaster/INSTALL.md sec 12."
     why  "You can still run master-less with MASTER_ID=-1."
   fi
 else
   warn "ethercat CLI not found"
   why  "Needed for phase 01 (bus discovery)."
-  why  "Built by 'configure --enable-tool' -- INSTALL-ethercat-master.md step 3."
+  why  "Built by 'configure --enable-tool' -- ethercatmaster/INSTALL.md step 3."
 fi
 
 # --- realtime ---------------------------------------------------------------

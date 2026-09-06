@@ -3,7 +3,7 @@
 Target: **Rocky/RHEL 9.8**, kernel `5.14.0-687.10.1.el9_8.0.1.x86_64`, IgH EtherCAT master **1.6.12**,
 installed to **`/opt/etherlab`**.
 
-Read `BUILD-ethercat-master.md` first — it explains *why* each choice below is what it is. This file is
+Read `BUILD.md` first — it explains *why* each choice below is what it is. This file is
 the command sequence.
 
 Every step is idempotent or has an explicit rollback (§11). Steps 1-9 need `sudo`.
@@ -51,7 +51,7 @@ are connected over is on `enp0s20f0u4`.
 > **Stop if `$EC_NIC` has an IP address.** You are about to take that interface away from the network
 > stack. Confirm you are not connected through it.
 
-Optionally run the pre-build check from `BUILD-ethercat-master.md` §11 — it prints the driver availability
+Optionally run the pre-build check from `BUILD.md` §11 — it prints the driver availability
 verdict for your exact kernel.
 
 ---
@@ -77,7 +77,7 @@ The last command must print your running `uname -r`, exactly.
 
 > If `kernel-devel-$(uname -r)` is not available, your running kernel is older than the current repo
 > contents. Run `sudo dnf update && sudo reboot`, then start again from step 1. Do **not** install a
-> different `kernel-devel` version to silence the error — see `BUILD-ethercat-master.md` §2.
+> different `kernel-devel` version to silence the error — see `BUILD.md` §2.
 
 ---
 
@@ -92,7 +92,7 @@ git checkout -b build-1.6.12 1.6.12
 git describe --tags                # must print exactly: 1.6.12
 ```
 
-Do not build from the `stable-1.6` tip. See `BUILD-ethercat-master.md` §10.
+Do not build from the `stable-1.6` tip. See `BUILD.md` §10.
 
 ---
 
@@ -156,7 +156,7 @@ make all modules -j"$(nproc)"
 
 > **This is the real compatibility test.** Rocky 9's `5.14` carries years of Red Hat backports, so the
 > forked `netdev-5.14-ethercat.c` may not compile even though configure accepted it
-> (`BUILD-ethercat-master.md` §5). If the failure is inside `devices/e1000e/`, re-run step 3 without
+> (`BUILD.md` §5). If the failure is inside `devices/e1000e/`, re-run step 3 without
 > `--enable-e1000e`, then `make clean && make all modules`. Losing the native driver costs latency, not
 > function.
 
@@ -502,7 +502,7 @@ being clean — both checked in §2.
 
 ## Reference
 
-- `BUILD-ethercat-master.md` — compatibility rules and requirements, in depth
-- `VERIFY.md` — what a working phase-00 training IOC looks like
+- `BUILD.md` — compatibility rules and requirements, in depth
+- `../00-bootstrap/VERIFY.md` — what a working phase-00 training IOC looks like
 - Upstream handbook: <https://gitlab.com/etherlab.org/ethercat/-/jobs/artifacts/stable-1.6/raw/pdf/ethercat_doc.pdf?job=pdf>
 - Device driver support table: <https://docs.etherlab.org/ethercat/1.6/doxygen/devicedrivers.html>

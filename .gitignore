@@ -19,3 +19,6 @@ stage/
 *.swp
 *~
 .DS_Store
+
+# generated delivery patch (the repo itself is the source of truth)
+*.patch

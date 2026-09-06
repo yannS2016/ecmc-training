@@ -28,9 +28,9 @@ EtherCAT knowledge is **not** assumed.
 
 If the EtherCAT master is not installed yet, do that first — `preflight.sh` fails
 without it, and it is the one prerequisite that touches the kernel:
-[00-bootstrap/BUILD-ethercat-master.md](00-bootstrap/BUILD-ethercat-master.md)
+[ethercatmaster/BUILD.md](ethercatmaster/BUILD.md)
 (compatibility rules and requirements) then
-[00-bootstrap/INSTALL-ethercat-master.md](00-bootstrap/INSTALL-ethercat-master.md)
+[ethercatmaster/INSTALL.md](ethercatmaster/INSTALL.md)
 (the commands).
 
 ```bash
@@ -76,9 +76,10 @@ you should be able to explain by the end.
 
 ```
 site.conf.example      copy to site.conf and edit — the only machine-specific file
+ethercatmaster/
+  BUILD.md             why the EtherCAT master build is kernel-coupled
+  INSTALL.md           installing it, command by command
 00-bootstrap/
-  BUILD-ethercat-master.md    why the EtherCAT master build is kernel-coupled
-  INSTALL-ethercat-master.md  installing it, command by command
   preflight.sh         verify the host can build and run ecmc
   bootstrap.sh         generate paths, stage ecmccfg, build the IOC
   stage-ecmccfg.sh     flatten ecmccfg into a usable install

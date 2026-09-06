@@ -1,6 +1,6 @@
 # Building the IgH EtherCAT master — compatibility and requirements
 
-Read this **before** `INSTALL-ethercat-master.md`. That file tells you which commands to run; this one
+Read this **before** `INSTALL.md`. That file tells you which commands to run; this one
 tells you what has to be true for them to succeed, and how to check each condition yourself.
 
 The short version: the EtherCAT master is an **out-of-tree kernel module**. It is welded to one exact
@@ -250,7 +250,7 @@ Kernel: `5.14.0-687.10.1.el9_8.0.1.x86_64` → Rocky/RHEL **9.8**, `linuxversion
   1 Gbit capability is unused.
 - Rocky 9.8 ships SELinux enforcing and a non-realtime kernel. Neither blocks the build. Cycle jitter
   without `PREEMPT_RT` is a training-acceptable limitation, already flagged by the realtime check in
-  [`preflight.sh`](preflight.sh).
+  [`preflight.sh`](../00-bootstrap/preflight.sh).
 
 ---
 
@@ -336,7 +336,7 @@ Fix, once:
 echo 'ETHERLAB = /opt/etherlab' >> <ecmc>/configure/RELEASE.local
 ```
 
-The training course already handles this — [`bootstrap.sh:83`](bootstrap.sh) writes `ETHERLAB` into the
+The training course already handles this — [`bootstrap.sh:83`](../00-bootstrap/bootstrap.sh) writes `ETHERLAB` into the
 generated `RELEASE.local` from `site.conf`. The problem only bites a standalone ecmc build.
 
 ### Version expectations elsewhere in the tree
@@ -459,4 +459,4 @@ a silent freeze.
 
 ## Next
 
-`INSTALL-ethercat-master.md` — the commands, in order, with the values from §7 filled in.
+`INSTALL.md` — the commands, in order, with the values from §7 filled in.
