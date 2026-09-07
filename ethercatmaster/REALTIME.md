@@ -527,6 +527,43 @@ echo 0 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo
 profile sets it — so if you are going to isolate cores anyway (§5), that arrives at the same time.
 
 
+
+#### A worked elimination
+
+Each of these took one five-minute run and no reboot. The control throughout was **9–16 outliers ≥40 µs
+per 300 s, with nothing between 20 and 69 µs** — a stable, bimodal distribution.
+
+| Candidate | Test | Result |
+|---|---|---|
+| SMI | `rdmsr -a 0x34` before/after | **Cleared.** `0x1e3f` unchanged — all 7743 SMIs were at boot |
+| P-state scaling | `grep . intel_pstate/*` | **Cleared.** `min_perf_pct=max_perf_pct=100`, already pinned |
+| Turbo | `no_turbo=1`, re-measure | **Cleared.** 11 outliers vs 9 — unchanged |
+| Scheduled jobs | `systemctl list-timers --all` | **Cleared.** Nothing faster than hourly |
+| The EtherCAT master | `systemctl stop ethercat`, re-measure | **Cleared** for the outliers; see below |
+| Transparent huge pages | `cat .../transparent_hugepage/enabled` | **Cleared.** Not built into `kernel-rt` at all |
+
+Stopping the master produced the one genuinely useful side result. The far outliers did not move — 16
+against 9 and 11 — but the **shoulder halved**, from 2,453–3,433 samples above 2 µs down to 1,311. That is
+the master's idle-phase frame processing, ~880 frames/s routed through the kernel network stack by the
+`generic` driver. It is a direct measurement of the `generic`-versus-native trade-off in §9, and it belongs
+in the PLC comparison: a hardware PLC does not pay it.
+
+It also confirmed the two populations are independent. Stopping the master moved one and left the other
+untouched.
+
+What remains after all that is kernel housekeeping — RCU callbacks, workqueues, kworkers, the scheduler
+tick, IRQ steering. Testing those individually would take an afternoon; isolation removes them as a class,
+and you need it anyway. So stop testing one at a time and go to §5.
+
+If outliers survive on an isolated `nohz_full` core, the remaining suspects are platform-level. ACPI
+thermal zone polling is worth checking — it runs on intervals in this range and executes AML in kernel
+context:
+
+```bash
+grep . /sys/class/thermal/thermal_zone*/polling_delay
+grep . /sys/class/thermal/thermal_zone*/type
+```
+
 ### Recording the comparison
 
 Where the point of the exercise is to compare a Linux + ecmc motion application against a hardware PLC,
