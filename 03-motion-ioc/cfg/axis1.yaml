@@ -55,6 +55,25 @@ encoder:
   bits: 16
   position: ec0.s{{ var.drv }}.positionActual01
 
+  # Homing lives HERE, under the encoder, not at the top level.
+  #
+  # ecmc 11.x supports multiple encoders per axis, and homing references a
+  # specific one -- so it belongs to the encoder that is being referenced.
+  # ecmccfg's runtime schema also still accepts a top-level "homing:" for
+  # backwards compatibility, but the VS Code ecmcPLC extension's schema does
+  # not. Writing it here satisfies both, and is the form that survives when you
+  # add a second encoder.
+  homing:
+    type: 1                                        # 1 = reference on low limit
+    position: 0.0
+    velocity:
+      to: 2.0                                      # seeking the reference
+      from: 0.25                                   # leaving it -- sets repeatability
+    acceleration: 10.0
+    deceleration: 10.0
+    postMoveEnable: true
+    postMovePosition: 5.0
+
 controller:
   Kp: 15.0
   Ki: 0.02
@@ -77,17 +96,6 @@ input:
     forward: ec0.s{{ var.din }}.binaryInput02.0
   home: ec0.s{{ var.din }}.binaryInput03.0
   interlock: ec0.s{{ var.din }}.ONE.0
-
-homing:
-  type: 1                                          # 1 = reference on low limit
-  position: 0.0
-  velocity:
-    to: 2.0
-    from: 0.25
-  acceleration: 10.0
-  deceleration: 10.0
-  postMoveEnable: true
-  postMovePosition: 5.0
 
 # Note softlimits and monitoring are SEPARATE top-level sections, not nested
 # under a common "monitor". The full key set is the schema in
