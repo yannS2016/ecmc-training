@@ -90,7 +90,18 @@ if getent group "$ECMC_GROUP" >/dev/null 2>&1; then say "group '$ECMC_GROUP' exi
 else run "groupadd -f '$ECMC_GROUP'"; say "created group '$ECMC_GROUP'"; fi
 run "install -m 0644 '$here/99-EtherCAT.rules' /etc/udev/rules.d/99-EtherCAT.rules"
 run "udevadm control --reload-rules"
-say "add users with: usermod -aG $ECMC_GROUP <user>   (applies at next login)"
+# Adding a user to this group grants write access to the bus -- ethercat
+# download, sii_write and foe_write all go through the same device node. That
+# is a privilege decision, so it stays explicit rather than happening here.
+# But an empty group is a guaranteed dead end (Permission denied on
+# /dev/EtherCAT0), so say so loudly rather than as a footnote.
+if [[ -z "$(getent group "$ECMC_GROUP" | cut -d: -f4)" ]]; then
+  say "WARNING: group '$ECMC_GROUP' has no members -- nothing can open /dev/EtherCAT0"
+  say "         fix:   sudo usermod -aG $ECMC_GROUP \$USER   then log out and in"
+  say "         check: id | grep $ECMC_GROUP"
+else
+  say "group members: $(getent group "$ECMC_GROUP" | cut -d: -f4)"
+fi
 
 # --- 4. linker path ---------------------------------------------------------
 hdr "linker path"
