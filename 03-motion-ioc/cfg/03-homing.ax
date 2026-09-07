@@ -1,0 +1,82 @@
+# =============================================================================
+# Stage 3 -- limit switches and a real homing sequence
+#
+# Everything from stage 2, plus wired hardware limits and a homing procedure
+# that establishes an absolute position reference by finding a physical feature.
+#
+# This is the first configuration that is honest on a real machine.
+# =============================================================================
+
+< ./cfg/02-closedloop.ax
+
+epicsEnvSet("ECMC_DESC", "Training axis 1 (homing)")
+
+# --- Hardware limit switches -------------------------------------------------
+# Stages 1 and 2 pointed these at ".ONE.0", a constant-1 entry meaning "always
+# healthy". Now they point at real digital inputs on the EL1808.
+#
+# POLARITY: ecmc treats these as "1 = OK, not at limit". Limit switches are
+# normally wired NORMALLY CLOSED so that a broken wire reads as "at limit" and
+# stops the axis -- a break is failure-safe. If your axis refuses to move in
+# both directions on first start, you have almost certainly got NO switches or
+# inverted polarity. Verify with:
+#
+#   caget $(IOC):m0s001-BI01   (and BI02)
+#
+# and confirm the bit changes when you trip the switch by hand BEFORE moving.
+epicsEnvSet("ECMC_EC_MON_LOWLIM",      "ec0.s$(DIN_POS=1).binaryInput01.0")
+epicsEnvSet("ECMC_EC_MON_HIGHLIM",     "ec0.s$(DIN_POS=1).binaryInput02.0")
+epicsEnvSet("ECMC_EC_MON_HOME_SWITCH", "ec0.s$(DIN_POS=1).binaryInput03.0")
+
+# External interlock: a single input that must be high for the axis to move.
+# Wire vacuum interlocks, guard switches, or a permit signal here. Left as
+# always-healthy since the reference crate has nothing wired to it.
+epicsEnvSet("ECMC_EC_MON_EXT_INTERLOCK", "ec0.s$(DIN_POS=1).ONE.0")
+
+# --- Homing ------------------------------------------------------------------
+# HOME_PROC selects one of ecmc's homing sequences. The full list is the
+# ECMC_SEQ_HOME_* enum in ecmc/devEcmcSup/main/ecmcDefinitions.h; the ones you
+# will actually use:
+#
+#    1  low limit                     drive to low limit, back off, set position
+#    2  high limit                    same at the high end
+#    3  low limit  -> home switch     coarse then fine: the usual choice
+#    4  high limit -> home switch
+#    5  low limit  -> home -> home    adds a second slow pass for repeatability
+#    6  high limit -> home -> home
+#    7  backward to home switch       no limit involved
+#    8  forward to home switch
+#   11  low limit  -> encoder index   highest repeatability, needs an index pulse
+#   12  high limit -> encoder index
+#   15  set position                  no motion; "you are here"
+#   21  low limit -> single-turn absolute
+#   22  high limit -> single-turn absolute
+#   26  external trigger
+#
+# 1 is chosen here because the reference crate has limit switches but no
+# guaranteed home switch. If you have one, use 3 -- it is more repeatable,
+# because a limit switch is a safety device and its trip point is not precise.
+epicsEnvSet("ECMC_HOME_PROC",    "$(HOME_PROC=1)")
+
+# Position assigned at the reference point. With HOME_PROC=1 this becomes the
+# position of the low limit, so the axis then runs 0 .. +travel.
+epicsEnvSet("ECMC_HOME_POS",     "$(HOME_POS=0.0)")
+
+# Two velocities: fast toward the reference, slow away from it. The slow one
+# determines repeatability -- halve it if homing scatters.
+epicsEnvSet("ECMC_HOME_VEL_TO",  "2.0")     # seeking
+epicsEnvSet("ECMC_HOME_VEL_FRM", "0.25")    # leaving, latching the exact edge
+epicsEnvSet("ECMC_HOME_ACC",     "10.0")
+epicsEnvSet("ECMC_HOME_DEC",     "10.0")
+
+# Move off the reference once homed, so the axis does not sit on a switch.
+epicsEnvSet("ECMC_HOME_POS_MOVE_ENA",      "1")
+epicsEnvSet("ECMC_HOME_POS_MOVE_TARG_POS", "$(HOME_MOVE_TO=5.0)")
+
+# --- Soft limits, now meaningful ---------------------------------------------
+# After homing, position is absolute, so soft limits mean something. Set them
+# INSIDE the hardware limits: soft limits stop the axis cleanly, hardware limits
+# are the backstop for when that fails.
+epicsEnvSet("ECMC_SOFT_LOW_LIM",  "$(SOFT_LOW=1.0)")
+epicsEnvSet("ECMC_SOFT_HIGH_LIM", "$(SOFT_HIGH=45.0)")
+epicsEnvSet("ECMC_DXLM_ENABLE",   "1")

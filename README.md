@@ -80,13 +80,21 @@ ethercatmaster/
   BUILD.md             why the EtherCAT master build is kernel-coupled
   INSTALL.md           installing it, command by command
 00-bootstrap/
+  MODULES.md           what each EPICS module is, why ecmc needs it, how it is configured
   preflight.sh         verify the host can build and run ecmc
   bootstrap.sh         generate paths, stage ecmccfg, build the IOC
   stage-ecmccfg.sh     flatten ecmccfg into a usable install
   ecmcTrainingApp/     the IOC application (standard EPICS layout)
     ecmcTrainingIocApp/src/requireStub.cpp    verifying stand-in for `require`
   VERIFY.md            the go/no-go gate
-01-discovery/ ... 99-assessment/
+01-discovery/
+  README.md            EtherCAT concepts, the ethercat CLI, translating examples
+  survey-crate.sh      dump the whole bus to a directory (read-only)
+  crate.md             YOUR inventory -- you write this in phase 01
+02-daq-ioc/
+  README.md            PDO vs SDO, PV naming, record-to-EtherCAT binding
+  st.cmd               the temperature IOC
+03-motion-ioc/ ... 99-assessment/
 appendix-require.md    what `require` is and why we do not use it
 exercises/             per-phase exercises with expected outcomes
 ```

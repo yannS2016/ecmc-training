@@ -1,0 +1,117 @@
+# =============================================================================
+# The SAME axis as 03-homing.ax, expressed in ecmccfg's YAML form.
+#
+# Run it with:
+#   ./st.cmd -m AXIS_CFG=./cfg/axis1.yaml,AXIS_FMT=yaml
+#
+# Compare against 01-openloop.ax + 02-closedloop.ax + 03-homing.ax. Same axis,
+# same ecmc objects, two very different authoring experiences -- README s.8
+# discusses the trade-off, including the Python dependency this form carries.
+#
+# Structure over flat names: ECMC_CNTRL_KP becomes controller.Kp, and
+# ECMC_EC_DRV_ALARM_0/1/2 becomes a drive.error list. The schema is validated
+# (cerberus) before anything is applied, so a typo is caught here rather than
+# becoming a silently-defaulted value.
+#
+# {{ var.x }} is jinja2 templating, evaluated before the YAML is parsed.
+# =============================================================================
+
+var:
+  drv: 5          # EL7041-0052 bus position  -- match your crate.md
+  din: 1          # EL1808 digital input bus position
+
+axis:
+  id: 1
+  type: joint
+  mode: CSV       # cyclic synchronous velocity -- what a stepper terminal does
+
+epics:
+  name: Axis1
+  precision: 3
+  unit: mm
+  motorRecord:
+    enable: true
+    description: Training axis 1 (YAML)
+
+drive:
+  type: 0                                          # 0 = stepper, 1 = DS402
+  numerator: 10.0                                  # mm/s at full-scale setpoint
+  denominator: 32768.0
+  control: ec0.s{{ var.drv }}.driveControl01
+  status: ec0.s{{ var.drv }}.driveStatus01
+  setpoint: ec0.s{{ var.drv }}.velocitySetpoint01
+  reduceTorque: 2                                  # bit index in the control word
+  reset: 1
+  warning: 2
+  error:                                           # max 3, bit indices in status
+    - 3                                            # error
+    - 7                                            # stall
+    - 14                                           # sync error
+
+encoder:
+  numerator: 1                                     # 1 mm ...
+  denominator: 12800                               # ... per 12800 counts
+  type: 0                                          # 0 = incremental
+  bits: 16
+  position: ec0.s{{ var.drv }}.positionActual01
+
+controller:
+  Kp: 15.0
+  Ki: 0.02
+  Kd: 0.0
+  Kff: 1.0
+
+trajectory:
+  type: 1                                          # 1 = ruckig jerk-limited
+  axis:
+    velocity: 2.0
+    acceleration: 10.0
+    emergencyDeceleration: 50.0
+    jerk: 100.0
+  jog:
+    velocity: 1.0
+
+input:
+  limit:
+    backward: ec0.s{{ var.din }}.binaryInput01.0
+    forward: ec0.s{{ var.din }}.binaryInput02.0
+  home: ec0.s{{ var.din }}.binaryInput03.0
+  interlock: ec0.s{{ var.din }}.ONE.0
+
+homing:
+  type: 1                                          # 1 = reference on low limit
+  position: 0.0
+  velocity:
+    to: 2.0
+    from: 0.25
+  acceleration: 10.0
+  deceleration: 10.0
+  postMoveEnable: true
+  postMovePosition: 5.0
+
+# Note softlimits and monitoring are SEPARATE top-level sections, not nested
+# under a common "monitor". The full key set is the schema in
+# ecmccfg/scripts/jinja2/ecmcYamlSchema.py -- that file is the reference, and
+# unknown keys are rejected rather than ignored.
+softlimits:
+  enable: true
+  backwardEnable: true
+  backward: 1.0
+  forwardEnable: true
+  forward: 45.0
+
+monitoring:
+  lag:
+    enable: true
+    tolerance: 0.5
+    time: 100
+  target:
+    enable: true
+    tolerance: 0.01
+    time: 100
+  velocity:
+    enable: true
+    max: 12.0
+    time:
+      trajectory: 100
+      drive: 200
