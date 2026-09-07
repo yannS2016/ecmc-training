@@ -39,12 +39,27 @@ Do not install the RT kernel first.
 1. **Stock kernel, `generic` driver — get the bus up.** `ethercat slaves` lists your hardware and
    `ethercat master` reaches `Phase: Operation`. Cabling, MAC selection, NetworkManager and permissions all
    get debugged here, and none of it is easier on an RT kernel.
-2. **Install `kernel-rt`, reboot** — §3.
-3. **Rebuild the EtherCAT master against it** — §4. Non-negotiable; the existing modules will not load.
-4. **Tune** — §5, §6, §7.
-5. **Measure** — §8. Without a `cyclictest` number, "realtime" is an assertion.
+2. **Capture the stock baseline while the bus is known-good** — see below. Skipping this means "is the bus
+   unchanged?" becomes a memory test after the kernel swap.
+3. **Install `kernel-rt`, reboot** — §3.
+4. **Rebuild the EtherCAT master against it** — §4. Non-negotiable; the existing modules will not load.
+5. **Measure untuned** — §8. This is the control.
+6. **Then tune** — §5, §6, §7 — and measure again.
+
+Measuring before tuning costs one extra reboot and buys attributability: a bad number after tuning is
+otherwise indistinguishable between the kernel, the isolation and the firmware.
 
 Debugging a bus problem and a latency problem simultaneously is how a two-hour job becomes a two-day one.
+
+### Capture the baseline first
+
+```bash
+{ uname -r; ethercat master; ethercat slaves; ethercat slaves -v; ethercat pdos; } \
+  > ~/bus-baseline-stock.txt
+```
+
+§5 diffs against this file. Slave identity and error counts must not change across the kernel swap;
+frame counters and DC timestamps of course will.
 
 ---
 
@@ -71,20 +86,43 @@ sudo dnf install -y kernel-rt kernel-rt-devel rt-tests tuned-profiles-realtime
 `kernel-rt-devel` is the RT equivalent of the `kernel-devel` from `INSTALL.md` step 1, and §4 cannot
 proceed without it.
 
-Make it the default and reboot:
+Find the RT entry and make it the default:
 
 ```bash
-sudo grubby --info=ALL | grep -E '^(index|kernel)='     # find the kernel-rt entry
-sudo grubby --set-default=/boot/vmlinuz-<the rt kernel>
+sudo grubby --info=ALL | grep -E '^(index|kernel)='
+sudo grubby --default-kernel        # often already the RT one after installing kernel-rt
+```
+
+On this host that prints:
+
+```
+index=0  kernel="/boot/vmlinuz-5.14.0-687.44.1.el9_8.x86_64+rt"     <- RT
+index=1  kernel="/boot/vmlinuz-5.14.0-687.10.1.el9_8.0.1.x86_64"    <- stock
+```
+
+Two things to read out of that, neither cosmetic:
+
+- **RT is a `+rt` suffix on the same NVR**, not the older `5.14.0-284.rt14.310.el9_2` form. So
+  `uname -r` will end in `+rt`, and the build tree is
+  `/usr/src/kernels/5.14.0-687.44.1.el9_8.x86_64+rt`. Anything that greps for `rt` in the middle of the
+  version string will miss it.
+- **It is a newer point build** — `687.44.1` against the running `687.10.1`, not merely an RT variant of
+  the same kernel. A different el9.8 build can carry different backports, so a clean compile on the stock
+  kernel does **not** guarantee one here. Expect the possibility of a third guard failure, and treat §4 as
+  a real build rather than a formality.
+
+```bash
+sudo grubby --set-default=/boot/vmlinuz-5.14.0-687.44.1.el9_8.x86_64+rt   # if not already default
 sudo reboot
 ```
 
 Confirm afterwards:
 
 ```bash
-uname -r                          # ...rt<n>.<n>.el9_8.x86_64
+uname -r                          # 5.14.0-687.44.1.el9_8.x86_64+rt
 uname -v | grep -o PREEMPT_RT     # must print PREEMPT_RT
 cat /sys/kernel/realtime          # must print 1
+ls -d /usr/src/kernels/"$(uname -r)"    # kernel-rt-devel must match, or §4 dies at ./configure
 ```
 
 `/sys/kernel/realtime` is what [`preflight.sh`](../00-bootstrap/preflight.sh) tests.
@@ -98,11 +136,23 @@ and are refused:
 
 ```
 insmod: ERROR: could not insert module ec_master.ko: Invalid module format
-dmesg:  ec_master: version magic '5.14.0-687...x86_64' should be '5.14.0-687...rt...x86_64'
+dmesg:  ec_master: version magic '5.14.0-687.10.1.el9_8.0.1.x86_64 SMP mod_unload modversions '
+        should be  '5.14.0-687.44.1.el9_8.x86_64+rt SMP preempt_rt mod_unload modversions '
 ```
 
-**The two compatibility patches are still required.** `kernel-rt` is the same 5.14 el9 base carrying the
-same Red Hat backports, so `master/cdev.c` and `master/module.c` fail identically without them.
+Note both halves differ here — the point build *and* the `preempt_rt` flag. Either alone is enough to be
+rejected.
+
+**Both compatibility patches are still required.** This is the same 5.14 el9.8 base carrying the same Red
+Hat backports, and their thresholds (RHEL 9.4 and 9.6) are below 9.8, so `master/cdev.c` and
+`master/module.c` fail identically without them.
+
+Run [`pre-build.sh`](pre-build.sh) first. Its RHEL backport probes read the *new* kernel's headers and say
+which patches this kernel actually needs — exactly the open question for a newer point build:
+
+```bash
+<training>/ethercatmaster/pre-build.sh
+```
 
 ```bash
 cd "$EC_SRC"
@@ -128,13 +178,25 @@ sudo systemctl restart ethercat
 and the whole trap: run it from a shell you opened before the reboot and it silently rebuilds against the
 old kernel, producing modules that fail exactly as above.
 
-Verify:
+Verify, then prove the bus is unchanged rather than merely alive:
 
 ```bash
 modinfo /lib/modules/"$(uname -r)"/ethercat/master/ec_master.ko | grep vermagic
 lsmod | grep '^ec_'
-/opt/etherlab/bin/ethercat master
+
+{ uname -r; ethercat master; ethercat slaves; ethercat slaves -v; ethercat pdos; } \
+  > ~/bus-baseline-rt.txt
+
+diff <(sed -n '/^=== Master/,$p' ~/bus-baseline-stock.txt) \
+     <(sed -n '/^=== Master/,$p' ~/bus-baseline-rt.txt)
 ```
+
+The gate is: the same slaves at the same positions, all `PREOP` with `Flag: +`, `Link: UP`,
+`Lost frames: 0`, `Phase: Idle`. Frame counters, DC timestamps and port `RxTime` values will differ and
+should — slave identity, product codes and error counts must not.
+
+A difference in *slave count* after nothing but a kernel change means the new driver build is dropping
+frames during scan, not that your hardware moved.
 
 You now maintain modules for **two** kernels. Updating either orphans its modules — `INSTALL.md` §12
 applies twice over.
@@ -242,8 +304,22 @@ Never run the IOC as root to obtain these. Group membership is the supported rou
 
 ## 8. Measure — a number, not a claim
 
+Take **two** measurements: untuned first, tuned second. The untuned one is the control. Without it, a
+disappointing final number cannot be attributed between the kernel, the CPU isolation and the firmware,
+and you end up changing three things and guessing.
+
+### First: untuned, straight after §4
+
+Nothing is isolated yet, so do not pin:
+
 ```bash
-sudo cyclictest -m -p 80 -t1 -n -a 2 -i 1000 -D 10m -h 400 -q
+sudo cyclictest -m -p 80 -t1 -n -i 1000 -D 10m -h 400 -q | tee ~/cyclictest-rt-untuned.txt
+```
+
+### Then: tuned, after §5 and §6
+
+```bash
+sudo cyclictest -m -p 80 -t1 -n -a 2 -i 1000 -D 10m -h 400 -q | tee ~/cyclictest-rt-tuned.txt
 ```
 
 `-a 2` pins to isolated core 2, `-i 1000` samples at your 1 kHz cycle, `-D 10m` runs long enough to catch
@@ -256,16 +332,36 @@ something. Read the **Max**, never the Avg — RT is a statement about the worst
 | > 200 µs | something is wrong — revisit §5 and §6 before blaming the kernel |
 | clean body, rare huge outlier | almost always SMI (§6) |
 
-Run it **under realistic load** — `stress-ng`, or simply the IOC plus a live bus. An idle machine measures
-nothing interesting.
+Run both **under realistic load** — `stress-ng`, or simply the IOC plus a live bus. An idle machine
+measures nothing interesting, and an idle measurement is the one that flatters you.
 
-Then check the real thing, because `cyclictest` measures the kernel, not your application:
+### Recording the comparison
+
+Where the point of the exercise is to compare a Linux + ecmc motion application against a hardware PLC,
+record the method alongside the number or the comparison is not defensible:
+
+| | value |
+|---|---|
+| Kernel | |
+| Tuned / untuned | |
+| Isolated cores | |
+| Load during the run | |
+| `cyclictest` Max / Avg | |
+| ecmc cycle overruns | |
+| PLC figure being compared against, and how *it* was measured | |
+
+That last row is the one that decides whether the comparison means anything. A PLC vendor's quoted jitter
+is usually measured on dedicated hardware with a specific task class — compare like for like, or the
+number proves nothing either way.
+
+`cyclictest` measures the kernel's ability to wake a thread on time. It is necessary, not sufficient:
 
 ```bash
 /opt/etherlab/bin/ethercat master        # working counter / DC status
 ```
 
-ecmc's own cycle-time statistics are the number that ultimately matters.
+ecmc's own cycle-time statistics are what ultimately matter, since they include the master, the driver and
+your PLC logic — not just the scheduler.
 
 ---
 
