@@ -86,6 +86,23 @@ sudo dnf install -y kernel-rt kernel-rt-devel rt-tests tuned-profiles-realtime
 `kernel-rt-devel` is the RT equivalent of the `kernel-devel` from `INSTALL.md` step 1, and §4 cannot
 proceed without it.
 
+> **`kernel-rt-devel` is a separate package, and it is easy to end up with the wrong one.** Two failure
+> modes, both of which cost a full build before they show up:
+>
+> ```bash
+> sudo dnf install -y "kernel-rt-devel-$(rpm -q --qf '%{VERSION}-%{RELEASE}' kernel-rt)"
+> rpm -q kernel-rt-devel
+> ls -d /usr/src/kernels/*+rt
+> ```
+>
+> - **Version skew.** A bare `dnf install kernel-rt-devel` can pull a newer build than the `kernel-rt` you
+>   have. Pin it to the installed kernel's version, as above.
+> - **Variant skew — the subtle one.** `kernel-devel` for the *same version* installs
+>   `/usr/src/kernels/5.14.0-687.44.1.el9_8.x86_64`, with **no `+rt`**. It sits right next to the tree you
+>   want, matches the version you are looking for, and builds cleanly — producing modules whose `vermagic`
+>   lacks `preempt_rt`, rejected at `insmod`. Always confirm the path you pass to `--with-linux-dir` ends
+>   in `+rt`; `"$(uname -r)"` gets this right on its own, which is why §4 uses it rather than a literal.
+
 Find the RT entry and make it the default:
 
 ```bash
@@ -244,7 +261,9 @@ taskset -c 2,3 ./st.cmd
 
 **Hyper-threading:** disable it in firmware, or never place the cyclic task on the sibling of a busy core.
 Two threads sharing one physical core share its execution units — and the resulting jitter is invisible to
-every tool that merely counts logical CPUs.
+every tool that merely counts logical CPUs. Check before assuming you have it:
+`lscpu | grep 'Thread(s) per core'` — a value of 1 means there is nothing to disable. (This host: an
+i5-6500, 4 cores, 1 thread each.)
 
 ---
 
