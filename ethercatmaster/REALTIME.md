@@ -53,13 +53,25 @@ Debugging a bus problem and a latency problem simultaneously is how a two-hour j
 
 ### Capture the baseline first
 
+One file per command. A single concatenated file cannot be diffed reliably: `ethercat slaves -v` and
+`ethercat pdos` both emit `=== Master 0, Slave N ===` headers, so any `sed` range over the combined
+output splits in the wrong place.
+
 ```bash
-{ uname -r; ethercat master; ethercat slaves; ethercat slaves -v; ethercat pdos; } \
-  > ~/bus-baseline-stock.txt
+mkdir -p ~/bus-stock
+ethercat master    > ~/bus-stock/master.txt
+ethercat slaves    > ~/bus-stock/slaves.txt
+ethercat slaves -v > ~/bus-stock/slaves-v.txt
+ethercat pdos      > ~/bus-stock/pdos.txt
+uname -r           > ~/bus-stock/kernel.txt
+wc -l ~/bus-stock/*        # every file non-empty, or the capture is not a baseline
 ```
 
-§5 diffs against this file. Slave identity and error counts must not change across the kernel swap;
-frame counters and DC timestamps of course will.
+That `wc -l` is the point of the exercise: an empty `slaves-v.txt` looks like a passing diff later, which
+is the worst possible failure mode for a baseline.
+
+§5 diffs against these. Slave identity and error counts must not change across the kernel swap; frame
+counters and DC timestamps of course will.
 
 ---
 
@@ -228,19 +240,35 @@ Verify, then prove the bus is unchanged rather than merely alive:
 modinfo /lib/modules/"$(uname -r)"/ethercat/master/ec_master.ko | grep vermagic
 lsmod | grep '^ec_'
 
-{ uname -r; ethercat master; ethercat slaves; ethercat slaves -v; ethercat pdos; } \
-  > ~/bus-baseline-rt.txt
+mkdir -p ~/bus-rt
+ethercat master    > ~/bus-rt/master.txt
+ethercat slaves    > ~/bus-rt/slaves.txt
+ethercat slaves -v > ~/bus-rt/slaves-v.txt
+ethercat pdos      > ~/bus-rt/pdos.txt
 
-diff <(sed -n '/^=== Master/,$p' ~/bus-baseline-stock.txt) \
-     <(sed -n '/^=== Master/,$p' ~/bus-baseline-rt.txt)
+diff ~/bus-stock/slaves.txt   ~/bus-rt/slaves.txt      # must be empty
+diff ~/bus-stock/slaves-v.txt ~/bus-rt/slaves-v.txt    # only RxTime / DC times
+diff ~/bus-stock/pdos.txt     ~/bus-rt/pdos.txt        # must be empty
+```
+
+`vermagic` must contain both the new version **and** `preempt_rt`:
+
+```
+vermagic: 5.14.0-687.44.1.el9_8.x86_64+rt SMP preempt_rt mod_unload modversions
 ```
 
 The gate is: the same slaves at the same positions, all `PREOP` with `Flag: +`, `Link: UP`,
-`Lost frames: 0`, `Phase: Idle`. Frame counters, DC timestamps and port `RxTime` values will differ and
-should — slave identity, product codes and error counts must not.
+`Lost frames: 0`, `Phase: Idle`. Port `RxTime` and DC transmission delays will differ and should — slave
+identity, product codes, revisions and error counts must not.
 
 A difference in *slave count* after nothing but a kernel change means the new driver build is dropping
 frames during scan, not that your hardware moved.
+
+> **Empty PDO names are cosmetic.** If `pdos.txt` differs only in the quoted strings —
+> `RxPDO 0x1600 ""` where the stock capture had `RxPDO 0x1600 "DRV RxPDO-Map Controlword Ch.1"` — with
+> every index, sub-index and bit width matching, that is the SII string table not having been re-read,
+> not a bus problem. ecmc addresses PDOs numerically, so nothing downstream depends on those strings. A
+> `sudo ethercat rescan` usually restores them.
 
 You now maintain modules for **two** kernels. Updating either orphans its modules — `INSTALL.md` §12
 applies twice over.
