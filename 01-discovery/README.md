@@ -133,26 +133,39 @@ covers it. For now, record it in `crate.md` as unsupported.
 
 Create it in this directory from your survey. Every later phase reads it.
 
+This is the **actual training crate**, as reported by `ethercat slaves`:
+
 ```markdown
 # Crate inventory
 
-Surveyed: 2026-09-06   Master: 0   NIC: eno1
+Surveyed: 2026-09-07   Master: 0   NIC: eno1
 
-| Pos | Terminal    | Vendor | Product    | ecmccfg HW_DESC | Used in | Notes |
-|-----|-------------|--------|------------|-----------------|---------|-------|
-| 0   | EK1100      | 0x2    | 0x044c2c52 | EK1100          | —       | coupler |
-| 1   | EL1808      | 0x2    | 0x07103052 | EL1808          | 03      | limit switches |
-| 2   | EL2808      | 0x2    | 0x0af83052 | EL2808          | 03      | brake, enable |
-| 3   | EL3202-0010 | 0x2    | 0x0c823052 | EL3202-0010     | 02      | PT100 ch1+2 |
-| 4   | EL5002      | 0x2    | 0x138a3052 | EL5002          | 03      | SSI encoder |
-| 5   | EL7041-0052 | 0x2    | 0x1b813052 | EL7041-0052     | 03      | stepper |
+| Pos | Terminal    | HW_DESC     | Used in | Notes |
+|-----|-------------|-------------|---------|-------|
+| 0   | EK1101      | EK1101      | —       | coupler with ID switch |
+| 1   | EL5042      | EL5042      | 03      | 2ch BiSS-C encoder interface |
+| 2   | EL7062-0000 | EL7062_CSP  | 03      | 2ch stepper 48 V 3 A; ch1 used, ch2 unused |
 
 ## Wiring
-- PT100 ch1: S+S HTF50, two-wire, 1.5 m, 0.25 mm²
-- Axis 1 limits: EL1808 ch1 (low), ch2 (high)
+- Axis 1 motor: <type>, coil current <n> mA  — from the datasheet, not a guess
+- Axis 1 encoder: <RLS/Renishaw/...> BiSS-C absolute, <n> bits, <n> counts/mm
+- Limit switches: none wired. The EL7062 has two inputs per channel
+  (binaryInputs01.0/.1) if you add them.
+
+## Gaps
+- No analog input terminal -> phase 02 cannot run. See 02-daq-ioc/README.md.
+- No digital I/O terminal -> no external switch feed.
 ```
 
-The **Product** column is the one that matters — §5 explains why.
+Fill in your own values for the encoder and motor — those numbers drive every
+scaling in phase 03.
+
+Note `HW_DESC` for position 2 is **`EL7062_CSP`**, not `EL7062`. That terminal has
+a firmware bug in CSV mode and must run in CSP; phase 03 §3 explains. The
+`HW_DESC` you choose here is not always just the part number on the label.
+
+The **Product** column, which `survey-crate.sh` puts in `identity.txt`, is what
+§5 checks against.
 
 ---
 

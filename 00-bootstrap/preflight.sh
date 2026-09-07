@@ -180,6 +180,25 @@ else
   why  "Expected to find startup.cmd there."
 fi
 
+# ecmccomp: component definitions (motor/drive/encoder parameters).
+# ecmccfg's applyComponent.cmd is only a wrapper around this module. Hardware
+# whose configuration was moved into the component system -- the EL7062 among
+# it -- cannot be configured without it. Optional overall, required for phase 03.
+if [[ -n "${ECMCCOMP_SRC:-}" ]]; then
+  if [[ -f "$ECMCCOMP_SRC/scripts/applyComponent.cmd" ]]; then
+    pass "ecmccomp source at $ECMCCOMP_SRC"
+    report_checkout_version "ecmccomp" "$ECMCCOMP_SRC" "${ECMCCOMP_TAG:-0.2.16}"
+  else
+    fail "ECMCCOMP_SRC '$ECMCCOMP_SRC' is not an ecmccomp checkout"
+    why  "Expected scripts/applyComponent.cmd there."
+  fi
+else
+  warn "ECMCCOMP_SRC not set -- phase 03 cannot configure the EL7062"
+  why  "ecmccfg has no native EL7062 motor config; it lives in ecmccomp."
+  why  "git clone https://github.com/paulscherrerinstitute/ecmccomp"
+  why  "then set ECMCCOMP_SRC in site.conf."
+fi
+
 # ruckig: jerk-limited trajectories, built out-of-tree with cmake
 if [[ -d "$mods/ruckig" ]]; then
   if ls "$mods"/ruckig/build/libruckig.* >/dev/null 2>&1; then

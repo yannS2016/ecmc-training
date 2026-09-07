@@ -1,0 +1,112 @@
+# =============================================================================
+# Stage 1 -- open loop
+#
+# EL7062 in CSP mode using ONLY its internal microstep counter as the encoder.
+# No BiSS-C, no external feedback. The axis moves and reports a position, but
+# that position is what was COMMANDED, not what happened.
+#
+# Loaded by:
+#   ${ecmccfg_DIR}loadYamlAxis.cmd "FILE=./cfg/01-openloop.yaml, DEV=..., DRV_SID=..."
+#
+# SCALING BELOW ASSUMES a 1 mm/rev stage. Measure yours -- exercise 1.
+# =============================================================================
+
+axis:
+  id: ${AXIS_ID=1}
+  mode: CSP                     # NOT CSV -- see README section 3
+  autoEnable:
+    enableTimeout: 1.0
+    disableTimeout: 5.0
+
+epics:
+  name: ${AX_NAME=M1}
+  precision: 3
+  description: Training axis (open loop)
+  unit: mm
+  motorRecord:
+    fieldInit: 'RTRY=0,FOFF=Frozen'
+
+drive:
+  # CSP: ecmc sends a POSITION setpoint each cycle, not a velocity.
+  # Scaling is counts-per-unit, matching the drive's own microstep resolution:
+  # 1 mm per 1048576 microsteps (64 microsteps x 16384 steps/rev on this stage).
+  numerator: 1
+  denominator: 1048576
+  type: 1                       # DS402 -- CSP requires this, not stepper type 0
+  setpoint: ec0.s$(DRV_SID).positionSetpoint${DRV_CH=01}
+  control: ec0.s$(DRV_SID).driveControl${DRV_CH=01}
+  status: ec0.s$(DRV_SID).driveStatus${DRV_CH=01}
+
+encoder:
+  desc: Openloop
+  numerator: 1
+  denominator: 1048576          # must match the drive scaling above
+  type: 0                       # incremental
+  bits: 32
+  absBits: 0
+  position: ec0.s$(DRV_SID).positionActual${DRV_CH=01}
+  status: ec0.s$(DRV_SID).encoderStatus${DRV_CH=01}
+
+  # THE KEY LINE, and the reason this file is YAML and not .ax.
+  #
+  # In CSP the drive closes its own position loop against its internal counter.
+  # ecmc must know which encoder object corresponds to that counter, otherwise
+  # ecmc's setpoints and the drive's feedback are in different coordinate
+  # systems. There is NO equivalent ECMC_* variable for this -- see README s.7.
+  useAsCSPDrvEnc: True
+
+  homing:
+    type: 15                    # set position: no motion, "you are here"
+    position: 0
+
+controller:
+  # In CSP with a single open-loop encoder the drive does the position control.
+  # ecmc's loop has nothing to correct -- setpoint and feedback are the same
+  # number by construction. Gains are near-zero deliberately; stage 2 turns this
+  # into a real loop once there is an independent measurement.
+  Kp: 0.0
+  Ki: 0.0
+  Kd: 0.0
+
+trajectory:
+  type: 1                       # ruckig jerk-limited
+  axis:
+    velocity: 1
+    acceleration: 10
+    deceleration: 10
+    emergencyDeceleration: 20
+    jerk: 200
+  jog:
+    velocity: 1
+
+input:
+  # The EL7062 has its own digital inputs, two per channel. This crate has no
+  # separate digital input terminal, so if you wire limit switches, they go here.
+  # Until they are wired and verified, ONE.0 (constant 1) means "always healthy".
+  #
+  # Set these to the binaryInputs lines only after you have confirmed polarity
+  # by hand -- README section 8.
+  limit:
+    forward: 'ec0.s$(DRV_SID).ONE.0'
+    backward: 'ec0.s$(DRV_SID).ONE.0'
+  home: 'ec0.s$(DRV_SID).ONE.0'
+  interlock: 'ec0.s$(DRV_SID).ONE.0'
+
+softlimits:
+  enable: false                 # no trustworthy position yet -- stage 2
+
+monitoring:
+  lag:
+    enable: false               # meaningless: feedback IS the setpoint
+    tolerance: 1
+    time: 100
+  target:
+    enable: true                # required by the motor record
+    tolerance: 0.01
+    time: 10
+  velocity:
+    enable: true
+    max: 8
+    time:
+      trajectory: 100
+      drive: 200

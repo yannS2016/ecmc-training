@@ -23,6 +23,11 @@ EPICS_MODULES=/epics/modules/7.0.7
 ECMC_SRC=/home/epics/src/ecmc
 ECMCCFG_SRC=/home/epics/src/ecmccfg
 
+# ecmccomp -- component definitions (motor/drive/encoder parameters).
+# REQUIRED for phase 03: the EL7062 configuration lives here, not in ecmccfg.
+#   git clone https://github.com/paulscherrerinstitute/ecmccomp
+ECMCCOMP_SRC=/home/epics/src/ecmccomp
+
 # --- EtherCAT ---------------------------------------------------------------
 # Etherlab master installation (provides libethercat and the `ethercat` CLI)
 ETHERLAB=/opt/etherlab

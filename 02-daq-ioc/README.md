@@ -1,7 +1,22 @@
 # Phase 02 — Temperature DAQ IOC
 
+> ### ⚠ This phase needs a terminal the training crate does not have
+>
+> The current crate is **EK1101 + EL5042 + EL7062-0000** — no analog input
+> terminal, so there is nothing to read a PT100 with and **this IOC will not
+> start against it**. `addSlave.cmd` will fail the identity check for a terminal
+> that is not on the bus, which is the behaviour phase 01 §5 describes.
+>
+> The material is kept complete and correct for when an **EL3202-0010** (or
+> EL3204 / EL3214 / EL3314) is added. Until then, read it rather than run it:
+> every concept here — the five-step startup, PDO vs SDO, PV naming, how a record
+> binds to EtherCAT data — carries over unchanged to phase 03, which *does* run
+> on this crate.
+>
+> If you add a terminal, the only edits needed are `TEMP_POS` and `TEMP_HW`.
+
 **Needs:** phase 00 complete, `crate.md` from phase 01, and a PT100 input terminal
-on the bus (reference: EL3202-0010).
+on the bus (reference: EL3202-0010) — **not present on the current crate**.
 
 **Produces:** a running IOC publishing two PT100 channels in °C.
 

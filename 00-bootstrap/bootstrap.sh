@@ -90,6 +90,8 @@ EOF
 # ---------------------------------------------------------------------------
 echo
 "$here/stage-ecmccfg.sh"
+echo
+"$here/stage-ecmccomp.sh"
 
 # ---------------------------------------------------------------------------
 # 3. build the IOC
@@ -114,8 +116,19 @@ echo "    built $ioc_bin"
 boot="$app/iocBoot/ecmcTrainingIoc"
 echo "==> writing $boot/ecmcPaths.cmd"
 
+# ecmccomp is optional -- only phases using component-configured hardware need
+# it (phase 03, the EL7062). Emit the variable only when it is actually staged,
+# so requireStub's check stays meaningful rather than pointing at a stub path.
+comp_stage="${ECMCCOMP_STAGE:-$repo/stage/ecmccomp}"
+if [[ -f "$comp_stage/applyComponent.cmd" ]]; then
+  comp_line="epicsEnvSet(\"ecmccomp_DIR\",          \"$comp_stage/\")"
+else
+  comp_line="# ecmccomp not staged -- set ECMCCOMP_SRC in site.conf if phase 03 needs it"
+fi
+
 db_path="$STAGE/db"
 db_path="$db_path:$ECMC_SRC/devEcmcSup/logic/db"   # cpp_logic templates (phase 04)
+[[ -d "$comp_stage/db" ]] && db_path="$db_path:$comp_stage/db"
 db_path="$db_path:$EPICS_MODULES/motor/db"
 db_path="$db_path:$EPICS_MODULES/asyn/db"
 db_path="$db_path:$EPICS_BASE/db"
@@ -132,6 +145,7 @@ write_paths_file() {
 epicsEnvSet("ecmccfg_DIR",           "$STAGE/")
 epicsEnvSet("ecmccfg_DB",            "$STAGE/db")
 epicsEnvSet("ecmc_DIR",              "$EPICS_MODULES/ecmc")
+$comp_line
 
 # Templates are loaded by bare filename, so every directory holding one must
 # be on this path.

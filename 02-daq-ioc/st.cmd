@@ -5,6 +5,12 @@
 # Reads two PT100 channels from a Beckhoff EL3202-0010 and publishes them as
 # EPICS ai records in degrees Celsius.
 #
+# !! REQUIRES AN ANALOG INPUT TERMINAL THAT THE TRAINING CRATE DOES NOT HAVE. !!
+# The crate is EK1101 + EL5042 + EL7062-0000. This script will fail at
+# addSlave.cmd for the EL3202-0010, because that terminal is not on the bus.
+# Kept ready for when one is added -- then set TEMP_POS and TEMP_HW.
+# See README.md.
+#
 # Positions default to the reference crate. Override from your own crate.md:
 #   ./st.cmd -m TEMP_POS=5
 # or edit the defaults below.

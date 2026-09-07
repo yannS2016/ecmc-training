@@ -1,280 +1,330 @@
 # Phase 03 — Motion IOC
 
-**Needs:** phase 00 complete, `crate.md` from phase 01, a stepper terminal
-(reference: EL7041-0052) with a motor, and digital inputs for limit switches.
+**Needs:** phase 00 complete, `crate.md` from phase 01, and the training crate:
 
-**Produces:** an axis you can jog, position and home through a standard EPICS
-`motorRecord`.
+| Pos | Terminal | Role |
+|---|---|---|
+| 0 | EK1101 | coupler |
+| 1 | EL5042 | BiSS-C absolute encoder interface |
+| 2 | EL7062-0000 | 2ch stepper output stage, 48 V 3 A (ch1 used) |
+
+Plus a **fourth repository**: `ecmccomp` (§2). Phase 03 cannot be configured
+without it.
+
+**Produces:** an axis you can jog, position and drive through a standard EPICS
+`motorRecord`, closed on an absolute linear scale.
 
 > ### Before you power anything
 >
-> This phase moves a motor. Stage 1 has **no position feedback, no limit
-> switches and no software limits** — nothing stops the axis but you.
->
-> - Run stage 1 on a motor that is **free to spin**, decoupled from a stage if at
->   all possible.
-> - Know where your e-stop or power cut is before you type `caput`.
-> - Set `I_RUN_MA` from your **motor's datasheet**. The default (900 mA) is for
->   the reference motor and will overheat a smaller one.
-> - Work through the stages in order. Each adds one protection; skipping to
->   stage 3 without understanding 1 and 2 means you cannot debug it.
+> - `I_MAX_MA` / `I_STDBY_MA` come from **your motor's datasheet**. The defaults
+>   are the PSI lab motor's and will overheat a smaller one.
+> - **This crate has no digital input terminal.** Unless you wire limit switches
+>   to the EL7062's own inputs *and* enable them in the config, nothing stops the
+>   axis at end of travel but you. Know where the power cut is.
+> - Run stage 1 decoupled if you can.
+> - All scalings below assume a **1 mm/rev** stage. Yours is probably different;
+>   exercise 1 fixes that before you trust any number.
 
 ---
 
 ## 1. The stages
 
-Same axis, built up in three steps. Each is a runnable IOC.
-
-| | Config | Adds | Protection |
-|---|---|---|---|
-| 1 | `cfg/01-openloop.ax` | motion at all | none |
-| 2 | `cfg/02-closedloop.ax` | PID, following error, soft limits, S-curve | detects a stall or jam |
-| 3 | `cfg/03-homing.ax` | limit switches, homing | absolute position, end-of-travel |
-| — | `cfg/axis1.yaml` | stage 3 in YAML | same axis, other syntax |
-
 ```bash
 cd 03-motion-ioc
-./st.cmd                                                    # stage 1
-./st.cmd -m AXIS_CFG=./cfg/02-closedloop.ax
-./st.cmd -m AXIS_CFG=./cfg/03-homing.ax
-./st.cmd -m AXIS_CFG=./cfg/axis1.yaml,AXIS_FMT=yaml
-
-./st.cmd -m DRV_POS=6,DIN_POS=2                             # your crate
+./st.cmd                       # stage 1: open loop, drive's own step counter
+./st.cmd -m STAGE=2            # stage 2: closed loop on the BiSS-C scale
+./st.cmd -m DRV_POS=2,ENC_POS=1        # if your positions differ
 ```
 
-Stages 2 and 3 are **delta files** — they `< ./cfg/01-openloop.ax` and override
-only what changes. Read them as diffs; the diff is the lesson.
+| | Config | Feedback | Protection |
+|---|---|---|---|
+| 1 | `cfg/01-openloop.yaml` | EL7062 microstep counter | none — counts commands, not reality |
+| 2 | `cfg/02-closedloop.yaml` + `cfg/enc-openloop.yaml` | BiSS-C absolute scale | following error, soft limits |
 
 ---
 
-## 2. What changed from phase 02
+## 2. `ecmccomp` — the fourth repository
 
-The bus half is identical: declare slaves, configure over SDO, apply, go active.
-Three differences:
+ecmccfg ships 302 motor configuration files. **None of them is for the EL7062.**
+That hardware's configuration lives in a separate module, `ecmccomp`, reached
+through a wrapper:
 
-- **`MODE=FULL`** instead of `DAQ`. Creates axis objects and the motor record
-  controller. `configureAxis.cmd` explicitly aborts in DAQ mode.
-- **Record update pinned to 10 ms**, not `EC_RATE`. Deliberate: the realtime
-  thread runs motion at 1 kHz, and database processing must not compete with it.
-- **A new step 4**, creating the axis.
+```
+ecmccfg/scripts/applyComponent.cmd
+  -> require ecmccomp
+  -> ${ecmccomp_DIR}applyComponent.cmd
+  -> the file for COMP=<name>
+```
+
+The wrapper's own docstring says *"Only for use if the ecmccomp module is
+accessible (at PSI)"*, which reads as though it were internal. It is not — the
+repository is public:
+
+```bash
+git clone https://github.com/paulscherrerinstitute/ecmccomp
+# then set ECMCCOMP_SRC in site.conf and re-run bootstrap.sh
+```
+
+Like ecmccfg, it is addressed by bare filename and must be flattened;
+`00-bootstrap/stage-ecmccomp.sh` does that, and `preflight.sh` warns when it is
+missing.
+
+**Worth noticing as a pattern.** Configuring one stepper terminal requires four
+coordinated repositories — ecmc, ecmccfg, ecmccomp, and the EtherCAT master —
+with version compatibility that no tool checks for you. That is a real property
+of this ecosystem and belongs in the phase 99 assessment.
+
+The three components this phase applies:
+
+| `COMP=` | Sets |
+|---|---|
+| `Motor-Generic-2Phase-Stepper` | coil current, nominal voltage, coil L and R |
+| `Drive-Generic-Ctrl-Params` | current and velocity loop gains inside the drive |
+| `Generic-Ch-Not-Used` | declares channel 2 unused |
+
+That last one is not optional. ecmc verifies that every drive channel linked to
+motion received SDO settings and **refuses to start** otherwise, so an unused
+channel must be declared explicitly.
 
 ---
 
-## 3. What an axis config actually is
+## 3. CSP, not CSV — and why you have no choice
 
-`cfg/01-openloop.ax` is **plain iocsh** — every line an `epicsEnvSet`. There is no
-parser and no schema. `configureAxis.cmd` sources the file, then `addAxis.cmd`
-reads those ~89 `ECMC_*` variables and turns them into `Cfg.*` calls.
+A stepper terminal can normally be driven two ways:
 
-Consequences worth internalising:
+- **CSV** (cyclic synchronous velocity) — ecmc sends a velocity each cycle and
+  closes the position loop itself.
+- **CSP** (cyclic synchronous position) — ecmc sends a position each cycle and
+  the drive closes its own loop.
 
-- **A typo'd variable name is silently ignored** and the parameter takes its
-  default. `ECMC_CNTRL_KP` set, `ECMC_CTRL_KP` misspelled — no error, no gain,
-  and an axis that tracks badly for reasons you cannot see.
-- Anything valid in iocsh is valid here: macros, `$(VAR=default)`, and including
-  another file with `<`.
-- Variables persist after the file is sourced, which is why `configureAxis.cmd`
-  runs `ecmc_axis_unset.cmd` afterwards. Configure two axes without that and the
-  second inherits everything the first set but the second did not.
+For the EL7062 this is decided for you. From the upstream best-practice README:
 
-That last point is the strongest argument for the YAML form (§8), which validates
-against a schema and rejects unknown keys.
+> The EL7062 has a firmware bug when running in CSV mode: at each disable the
+> open-loop counter jumps to closest full turn. Therefore, EL7062 must run in
+> **CSP** mode. Beckhoff has confirmed the bug and it will be fixed, but earliest
+> sometime in 2026.
+
+Hence `HW_DESC=EL7062_CSP` and, in the axis config:
+
+```yaml
+axis:
+  mode: CSP
+drive:
+  type: 1                                    # DS402, not stepper type 0
+  setpoint: ec0.s$(DRV_SID).positionSetpoint01   # position, not velocity
+```
+
+**The lesson beyond this terminal:** the `HW_DESC` you need is not always the
+part number on the label. Firmware quirks, revisions and operating modes all
+change which ecmccfg description applies. Phase 01's identity check tells you the
+terminal is what you declared — it cannot tell you the declaration is *right*.
 
 ---
 
-## 4. The five things every axis needs
+## 4. Two encoders, and why
 
-Strip away the 89 parameters and an axis is:
+Stage 2 configures two, and this is the part most worth understanding.
 
-**1. An encoder** — where am I? Even "open loop" needs one: the motor record must
-have a readback. Stage 1 uses the EL7041's internal microstep counter, which
+| | Measures | Frame | Role |
+|---|---|---|---|
+| Encoder 1 — BiSS-C | the **load** | absolute, from the scale | primary: what ecmc controls to and the motor record reads |
+| Encoder 2 — step counter | the **motor** | incremental, from power-on | `useAsCSPDrvEnc`: the frame the drive's own loop closes in |
+
+In CSP the drive runs a position loop against its internal counter, while ecmc
+issues setpoints in the scale's coordinates. Those are different coordinate
+systems. Unless ecmc knows about both, the two disagree and the axis will not
+settle.
+
+Two settings tie them together, both in `cfg/enc-openloop.yaml`:
+
+```yaml
+useAsCSPDrvEnc: 1              # this is the encoder the drive closes on
+homing:
+  refToEncIDAtStartup: 1       # seed it from encoder 1 at startup, no motion
+```
+
+Load order matters: `loadYamlAxis.cmd` first (creating the axis and encoder 1),
+then `loadYamlEnc.cmd` to attach encoder 2.
+
+---
+
+## 5. Absolute encoders make homing almost disappear
+
+Phase 03 originally spent a section on homing sequences. With a BiSS-C **absolute**
+scale, most of that evaporates: position is known at power-on, with no reference
+move ever.
+
+What replaces homing is one number:
+
+```yaml
+absOffset: -15626.058          # maps raw scale reading -> your machine coordinates
+```
+
+You measure it once — move to a known physical position, read the raw value,
+compute the difference — and the axis knows where it is at every power-on
+forever after. Exercise 3 derives yours.
+
+The homing sequence table still matters for incremental systems, and phase 04
+returns to it. The full list is the `ECMC_SEQ_HOME_*` enum in
+`ecmc/devEcmcSup/main/ecmcDefinitions.h`; the useful ones are 1/2 (limit),
+3/4 (limit → home switch), 11/12 (limit → encoder index, the most repeatable),
+15 (set position, no motion) and 21/22 (single-turn absolute).
+
+Stage 1 uses type 15 — "you are here" — because an open-loop counter has no
+reference to find.
+
+---
+
+## 6. The five things every axis needs
+
+**1. An encoder** — where am I? Stage 1 uses the drive's microstep counter, which
 counts *commanded* steps. **It will report a perfect position straight through a
-stall**, because it is counting what was asked for, not what happened. That is
-precisely why stage 2 exists.
+stall.** That is exactly why stage 2 exists.
 
 Scaling is a ratio, deliberately not a float:
 
-```
-ECMC_ENC_SCALE_NUM   = 1        # 1 mm ...
-ECMC_ENC_SCALE_DENOM = 12800    # ... per 12800 counts
-```
-
-12800 = 200 full steps/rev × 64 microsteps, with a 1 mm/rev leadscrew. **Compute
-this for your hardware** — everything downstream is in these units.
-
-**2. A drive** — how do I move? For a stepper, a velocity setpoint plus an enable
-bit. `ECMC_DRV_SCALE_NUM/DENOM` maps engineering units onto the raw setpoint:
-`10.0 / 32768.0` means full-scale 32768 corresponds to 10 mm/s.
-
-**3. A trajectory generator** — where should I be *now*? Given a target, it emits
-a position setpoint each cycle. `ECMC_TRAJ_TYPE`: 0 = trapezoidal, 1 = ruckig
-jerk-limited.
-
-**4. A controller** — close the loop:
-
-```
-velocity_out = KFF * traj_velocity + PID(setpoint_pos - actual_pos)
+```yaml
+numerator: 1          # 1 mm ...
+denominator: 4096     # ... per 4096 BiSS-C counts
 ```
 
-`KFF=1.0` does most of the work; the PID corrects what feed-forward misses.
+The step counter and the drive use `1 / 1048576` (microsteps per mm). **All three
+must describe the same physical unit** or the loop fights itself.
 
-**5. Monitoring** — is anything wrong? Following error, at-target, maximum
-velocity, limit switches, soft limits. Each can interlock the axis.
+**2. A drive** — how do I move? In CSP, a position setpoint plus a control word.
+
+**3. A trajectory generator** — where should I be *now*? `type: 1` is ruckig
+jerk-limited; `0` is trapezoidal.
+
+**4. A controller** — closes ecmc's loop on following error. In stage 1 the gains
+are zero on purpose: feedback *is* the setpoint, so there is nothing to correct.
+Stage 2 makes it real.
+
+**5. Monitoring** — following error, at-target, velocity, limits, soft limits.
 
 ---
 
-## 5. Driving it
+## 7. Why both configs are YAML
+
+Phase 03 was originally going to teach `.ax` and YAML side by side. This hardware
+settled the question:
+
+**`useAsCSPDrvEnc` and `refToEncIDAtStartup` have no `.ax` equivalent.** They are
+not among the ~89 `ECMC_*` variables that `addAxis.cmd` consumes. The classic
+dialect *cannot express this configuration at all* — and it is not exotic, it is
+what a mainstream Beckhoff stepper terminal requires.
+
+So:
+
+- **`.ax`** — pure iocsh `epicsEnvSet`, no dependencies. What most deployed
+  systems still run, and what you will meet in most upstream examples. Learn to
+  read it. Its flaw: no schema, so a **misspelled variable is silently ignored**
+  and the parameter takes its default, producing an axis that behaves oddly for
+  reasons nothing reports.
+- **YAML** — structured, schema-validated (unknown keys are rejected), templated
+  with jinja2, and the only dialect that reaches newer features. Its cost:
+  `loadYamlAxis.cmd` shells out to Python during `st.cmd` via `pythonVenv.sh`,
+  which on first run creates a venv and `pip install`s four packages — **your IOC
+  wants network access to start**. Pre-install them on an isolated network;
+  `preflight.sh` checks.
+
+There are also **two YAML schemas that disagree**: the runtime authority is
+`ecmccfg/scripts/jinja2/ecmcYamlSchema.py`; the VS Code ecmcPLC extension ships
+its own, which rejects a top-level `homing:` that the runtime accepts. Nest
+`homing:` under `encoder:` and both are happy — which is the more correct form
+anyway now that an axis can have several encoders.
+
+---
+
+## 8. Driving it
 
 ```bash
-caput  TRAIN-MOTION:Axis1.CNEN 1        # enable the drive
-caput  TRAIN-MOTION:Axis1.JOGF 1        # jog forward; JOGR reverse; 0 stops
-caput  TRAIN-MOTION:Axis1.VAL  10       # move to 10 mm
-caget  TRAIN-MOTION:Axis1.RBV           # readback
-caput  TRAIN-MOTION:Axis1.STOP 1        # stop
-caput  TRAIN-MOTION:Axis1.HOMF 1        # home (stage 3)
+caput  TRAIN-MOTION:M1.CNEN 1        # enable
+caput  TRAIN-MOTION:M1.JOGF 1        # jog forward; JOGR reverse; 0 stops
+caput  TRAIN-MOTION:M1.VAL  10       # move to 10 mm
+caget  TRAIN-MOTION:M1.RBV           # readback
+caput  TRAIN-MOTION:M1.STOP 1
 ```
 
-These are **standard motor record fields**. Nothing here is ecmc-specific — any
-EPICS motion client, OPI or scan tool works with an ecmc axis unchanged. That is
-one of ecmc's strongest cards, and worth weighing in phase 99: a TwinCAT axis
-needs a gateway layer to reach EPICS at all.
+Standard **motor record** fields — nothing ecmc-specific. Any EPICS motion
+client, OPI or scan tool drives an ecmc axis unchanged. Worth weighing in phase
+99: a TwinCAT axis needs a gateway layer to reach EPICS at all.
 
-ecmc-side detail lives on separate PVs under `ECMC_R` (`Axis1-`):
+ecmc-side detail sits on its own PVs:
 
 ```bash
-caget TRAIN-MOTION:Axis1-ErrId          # ecmc error code, 0 = OK
-caget TRAIN-MOTION:Axis1-PosAct         # ecmc's own position
-caget TRAIN-MOTION:Axis1-CntrlErr       # following error
+caget TRAIN-MOTION:M1-ErrId          # ecmc error code, 0 = OK
+caget TRAIN-MOTION:M1-PosAct
+caget TRAIN-MOTION:M1-CntrlErr       # following error
 ```
 
-When the motor record says `PROBLEM` and you need to know *why*, look here.
+With `ENG_MODE=1` you also get the commissioning panels, including the EL7062
+**auto-tune** — run it, and it hands you the `MACROS` string to paste into the
+`Drive-Generic-Ctrl-Params` line in `st.cmd`.
 
----
+### Wiring limit switches
 
-## 6. Homing
+This crate has no digital input terminal, but the EL7062 has two inputs per
+channel. To use them, change the `input:` block from `ONE.0` to:
 
-An incremental encoder knows only relative movement. Homing establishes an
-absolute reference by driving to a physical feature and declaring a position.
-
-`ECMC_HOME_PROC` selects the sequence; the full list is the `ECMC_SEQ_HOME_*`
-enum in `ecmc/devEcmcSup/main/ecmcDefinitions.h`. The useful ones:
-
-| | Sequence | Use when |
-|---|---|---|
-| 1 / 2 | low / high limit | limit switches only — stage 3 default |
-| 3 / 4 | limit → home switch | you have a home switch; more repeatable |
-| 5 / 6 | limit → home → home | second slow pass; best switch repeatability |
-| 7 / 8 | to home switch | no limits involved |
-| 11 / 12 | limit → encoder index | highest repeatability; needs an index pulse |
-| 15 | set position | no motion — "you are here" |
-| 21 / 22 | limit → single-turn absolute | absolute encoder within one turn |
-| 26 | external trigger | homing on an external signal |
-
-Two velocities matter: `HOME_VEL_TO` seeks the reference fast, `HOME_VEL_FRM`
-leaves it slowly and latches the exact edge. **Repeatability is set by the slow
-one** — if homing scatters, halve it before changing anything else.
-
-A limit switch is a *safety* device: its trip point is repeatable to maybe a few
-tenths of a millimetre. If you need better, home to an index pulse (11/12).
-
----
-
-## 7. Trajectory: trapezoidal vs jerk-limited
-
-`ECMC_TRAJ_TYPE=0` gives a trapezoidal velocity profile: acceleration steps
-instantly from 0 to full. Infinite jerk excites every resonance in the mechanics
-— audible knock, ringing at the end of a move, visible overshoot.
-
-`ECMC_TRAJ_TYPE=1` uses **ruckig** to ramp acceleration over `ECMC_JERK`
-(EGU/s³). Moves take marginally longer and settle far faster.
-
-Exercise 4 makes you measure the difference rather than take it on trust.
-
----
-
-## 8. The same axis in YAML
-
-`cfg/axis1.yaml` is stage 3, re-expressed. Run it with `AXIS_FMT=yaml`.
-
-**What it gives you:** structure (`controller.Kp` instead of `ECMC_CNTRL_KP`),
-lists (`drive.error` instead of `ALARM_0/1/2`), jinja2 templating
-(`{{ var.drv }}`), and — the real win — **schema validation**. Unknown keys are
-*rejected*, so the silent-typo failure of §3 cannot happen.
-
-**What it costs.** This is not pure iocsh. `loadYamlAxis.cmd` shells out during
-`st.cmd`:
-
-```
-system ". ${ECMC_CONFIG_ROOT}pythonVenv.sh -d ${ECMC_TMP_DIR}; python ... axisYamlJinja2.py ..."
+```yaml
+input:
+  limit:
+    forward: ec0.s$(DRV_SID).binaryInputs01.0
+    backward: ec0.s$(DRV_SID).binaryInputs01.1
 ```
 
-and `pythonVenv.sh`, on first run, creates a venv and `pip install`s `pyyaml`,
-`jinja2-cli`, `yamllint` and `Cerberus`. **Your IOC wants network access to
-start.** On an isolated control network, pre-install those packages system-wide;
-`preflight.sh` checks and tells you which are missing.
-
-**Two schemas, and they disagree.** The authority at runtime is
-`ecmccfg/scripts/jinja2/ecmcYamlSchema.py`. The VS Code ecmcPLC extension ships
-its own JSON schema (matching `**/ax*.yaml`) which is not identical — it rejects
-a top-level `homing:` section that the runtime accepts. `axis1.yaml` nests
-`homing:` under `encoder:`, which **both** accept and which is the more correct
-form anyway: ecmc 11.x supports multiple encoders per axis, so homing belongs to
-the encoder it references.
-
-**Which to use?** Know both. `.ax` is what you will meet in most deployed systems
-and in most upstream examples; YAML is where ecmccfg is going, and its validation
-genuinely prevents a class of bug. Neither is going away.
+**Verify polarity by hand before moving.** ecmc reads these as "1 = OK, not at
+limit", and switches are normally wired closed so a broken wire reads as "at
+limit". If the axis refuses to move in both directions, that is what happened.
 
 ---
 
 ## 9. When it will not move
 
-In rough order of likelihood:
-
 | Symptom | Cause |
 |---|---|
-| Won't move either direction, no error | limit switches read "at limit" — polarity, or nothing wired. Check `caget $(IOC):m0s001-BI01` |
-| `CNEN` goes 1 then back to 0 | drive not reporting ready — check `ECMC_EC_DRV_STATUS` bit index |
-| Moves then trips instantly | following error too tight, or encoder scaling/sign wrong |
-| Moves the wrong way | negate `ECMC_ENC_SCALE_NUM` |
-| Moves 10× too far | scaling denominator — microstepping is not what you assumed |
-| Position drifts every move | open loop and losing steps: lower velocity/acceleration or raise current |
-| Homing scatters | `HOME_VEL_FRM` too fast |
+| IOC won't start, SDO complaint about ch2 | missing `Generic-Ch-Not-Used` for channel 2 |
+| IOC won't start, `ecmccomp_DIR` not set | `ECMCCOMP_SRC` missing from `site.conf` (§2) |
+| Won't move either direction, no error | limits read "at limit" — polarity, or `ONE.0` not set |
+| `CNEN` goes 1 then 0 | drive not ready — check status word bits |
+| Position jumps on disable | you are in CSV mode — must be CSP (§3) |
+| Axis never settles, hunts | the two encoder frames disagree — check `useAsCSPDrvEnc` and `refToEncIDAtStartup` |
+| Moves 256× too far | scaling: microsteps per rev is not what you assumed |
+| Position right at power-on but wrong absolute | `absOffset` not derived for your stage (§5) |
 
-Always start at `Axis1-ErrId`. `ecmcReport 3` in the IOC shell dumps the whole
-object tree with each object's state.
+Start at `M1-ErrId`; `ecmcReport 3` dumps the object tree.
 
 ---
 
 ## Exercises
 
-1. **Scale it properly.** Compute `ENC_SCALE_NUM/DENOM` for *your* motor,
-   microstepping and mechanics. Command 10 mm and measure with a dial gauge or
-   ruler. Iterate until it is right — everything downstream depends on this.
-2. **Provoke a stall.** Stage 1, and gently stop the shaft by hand. Watch `RBV`:
-   it keeps counting. Now stage 2 with following-error monitoring on — it trips.
-   Explain in one sentence what changed.
-3. **Tune the loop.** From `KP=0`, raise until the axis tracks crisply, then
-   until it buzzes; back off ~30%. Add `KI` until steady-state error at rest
-   disappears. Record what each did.
-4. **Trapezoidal vs ruckig.** Run the same 20 mm move with `TRAJ_TYPE=0` and
-   `=1`. Compare settle time and listen. `-m TRAJ_TYPE=0` overrides it.
-5. **Break the limits deliberately.** Swap `LOWLIM` and `HIGHLIM` in stage 3.
-   Predict the behaviour before running. Why is this failure mode dangerous, and
-   what would catch it in commissioning?
-6. **Home two ways.** Home with `HOME_PROC=1`, note the position. Repeat ten
-   times and record the spread. Halve `HOME_VEL_FRM` and repeat. Quantify it.
-7. **Both dialects.** Run `03-homing.ax` and `axis1.yaml` and confirm the axis
-   behaves identically. Then introduce the same typo in each — misspell a
-   controller gain. Which one tells you?
+1. **Scale it properly.** Find your stage's mm/rev, the drive's microsteps/rev
+   and the scale's counts/mm. Set all three scalings consistently. Command 10 mm,
+   measure it. Nothing downstream is trustworthy until this is right.
+2. **Auto-tune the drive.** With `ENG_MODE=1`, run the EL7062 auto-tune from the
+   expert panel. Paste the result into `DRV_CTRL_MACROS`. What changed?
+3. **Derive `absOffset`.** Move to a known physical position, read the raw BiSS-C
+   value, compute the offset that maps it to your machine coordinate. Restart and
+   confirm the position is correct with no homing move.
+4. **Tune the ecmc loop.** Stage 2, from `Kp: 0`. Raise until tracking is crisp,
+   then until it buzzes; back off. Add `Ki` until steady-state error disappears.
+5. **Provoke a stall.** Stage 1, gently stop the shaft: `RBV` keeps counting.
+   Stage 2 with lag monitoring on: it trips. One sentence on what changed.
+6. **Break the frames.** In `enc-openloop.yaml`, remove `refToEncIDAtStartup`.
+   Predict what happens, then try it. Why does §4 matter?
+7. **Read the other dialect.** Open any `.ax` in `ecmccfg/examples/ESS/*/cfg/`.
+   Map five of its `ECMC_*` variables onto their YAML equivalents. Then find one
+   YAML key with no `ECMC_*` counterpart.
 
 ### Expected outcomes
 
-- An axis that jogs, positions to a measured target, and homes repeatably.
-- You can name the five parts of an axis and what each contributes.
-- You can compute encoder and drive scaling from mechanics.
-- You can pick a homing sequence for given hardware and justify it.
-- You can read either config dialect and state the trade-off between them.
+- An axis that jogs and positions to a measured target, closed on the scale.
+- Correct absolute position at power-on with no homing move.
+- You can explain why this terminal must run CSP, and what breaks otherwise.
+- You can explain why two encoders are configured and what ties their frames.
+- You can state the trade-off between `.ax` and YAML, with a concrete example of
+  something only one can express.
 
 ---
 

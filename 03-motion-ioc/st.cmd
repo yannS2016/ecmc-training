@@ -1,21 +1,24 @@
 #!../00-bootstrap/ecmcTrainingApp/bin/linux-x86_64/ecmcTrainingIoc
 #
-# Phase 03 -- motion IOC.
+# Phase 03 -- motion IOC for the training crate:
 #
-# One axis on a Beckhoff EL7041-0052 stepper terminal, built up in stages.
-# Select the stage with AXIS_CFG:
+#   0  EK1101      EtherCAT coupler (ID switch)
+#   1  EL5042      2ch BiSS-C encoder interface
+#   2  EL7062-0000 2ch stepper output stage (48 V, 3 A)
 #
-#   ./st.cmd                                                    # stage 1, open loop
-#   ./st.cmd -m AXIS_CFG=./cfg/02-closedloop.ax
-#   ./st.cmd -m AXIS_CFG=./cfg/03-homing.ax
-#   ./st.cmd -m AXIS_CFG=./cfg/axis1.yaml,AXIS_FMT=yaml          # YAML form of stage 3
+# Stages:
+#   ./st.cmd                                     # stage 1, open loop
+#   ./st.cmd -m STAGE=2                          # stage 2, closed loop on BiSS-C
 #
-# Override bus positions from your crate.md:
-#   ./st.cmd -m DRV_POS=5,DIN_POS=1
+# Override bus positions if yours differ:
+#   ./st.cmd -m DRV_POS=2,ENC_POS=1
 #
-# SAFETY: this moves a motor. Before the first run, confirm the axis is free to
-# travel, limit switches are wired and working, and you can reach an e-stop.
-# Stage 1 has NO position feedback and NO software limits -- see README section 3.
+# SAFETY: this moves a motor.
+#   * Set I_MAX_MA / I_STDBY_MA from YOUR motor's datasheet before first run.
+#   * This crate has no digital input terminal. Unless you have wired limit
+#     switches to the EL7062's own inputs AND enabled them in the config,
+#     NOTHING stops the axis at end of travel except you.
+#   * Run stage 1 with the motor decoupled if you can.
 
 < ../ecmcPaths.cmd
 
@@ -25,80 +28,84 @@ epicsEnvSet("ECMCCFG_INIT", "")
 
 require ecmccfg "11.0.8"
 
-# ---------------------------------------------------------------------------
-# MODE=FULL -- the default. Creates axis objects and the motor record
-# controller. Contrast phase 02, which used MODE=DAQ: configureAxis.cmd
-# deliberately aborts in DAQ mode.
-#
-# Record update is pinned to 10 ms here rather than following EC_RATE, so
-# database processing does not compete with the motion thread.
-# ---------------------------------------------------------------------------
-$(SCRIPTEXEC) ${ecmccfg_DIR}startup.cmd, "IOC=$(IOC),ECMC_VER=11.0.8,MODE=FULL,EC_RATE=$(EC_RATE=1000)"
+# ENG_MODE=1 adds the commissioning PVs and the hardware expert panels -- needed
+# for the EL7062 auto-tune in exercise 2. Turn it off in production.
+$(SCRIPTEXEC) ${ecmccfg_DIR}startup.cmd, "IOC=$(IOC),ECMC_VER=11.0.8,MODE=FULL,EC_RATE=$(EC_RATE=1000),ENG_MODE=$(ENG_MODE=1)"
 
 # ---------------------------------------------------------------------------
 # 1. Declare the bus
 # ---------------------------------------------------------------------------
-$(SCRIPTEXEC) ${ecmccfg_DIR}addSlave.cmd, "SLAVE_ID=$(COUPLER_POS=0), HW_DESC=$(COUPLER_HW=EK1100)"
-$(SCRIPTEXEC) ${ecmccfg_DIR}addSlave.cmd, "SLAVE_ID=$(DIN_POS=1),     HW_DESC=$(DIN_HW=EL1808)"
-$(SCRIPTEXEC) ${ecmccfg_DIR}addSlave.cmd, "SLAVE_ID=$(DRV_POS=5),     HW_DESC=$(DRV_HW=EL7041-0052)"
+$(SCRIPTEXEC) ${ecmccfg_DIR}addSlave.cmd, "SLAVE_ID=$(COUPLER_POS=0), HW_DESC=$(COUPLER_HW=EK1101)"
+
+# The EL5042 BiSS-C encoder interface.
+$(SCRIPTEXEC) ${ecmccfg_DIR}addSlave.cmd, "SLAVE_ID=$(ENC_POS=1), HW_DESC=EL5042"
+# Encoder-specific SDO setup: BiSS-C frame length, clock, data format. Replace
+# with the component matching YOUR scale -- ls the staged dir for Encoder-*BISS*.
+$(SCRIPTEXEC) ${ecmccfg_DIR}applyComponent.cmd, "COMP=$(ENC_COMP=Encoder-RLS-LA11-26bit-BISS-C), CH_ID=1"
+epicsEnvSet("ENC_SID", "${ECMC_EC_SLAVE_NUM}")
 
 # ---------------------------------------------------------------------------
-# 2. Configure the drive -- motor parameters over SDO
+# The stepper terminal -- note HW_DESC=EL7062_CSP, not EL7062.
 #
-# Same PDO/SDO split as phase 02: coil current, microstepping and maximum speed
-# are SDO settings written once; the velocity setpoint is cyclic PDO data.
-#
-# I_RUN_MA / I_STDBY_MA MUST match your motor's datasheet. Too high overheats the
-# windings; too low stalls under load. There is no safe default -- look it up.
+# The EL7062 has a FIRMWARE BUG in CSV (velocity) mode: on every disable, the
+# open-loop counter jumps to the nearest full turn. Beckhoff have confirmed it;
+# a fix is not expected before 2026. So this terminal must run in CSP
+# (position) mode. See README section 3 -- this is not a style choice.
 # ---------------------------------------------------------------------------
-epicsEnvSet("ECMC_EC_SLAVE_NUM", "$(DRV_POS=5)")
-$(SCRIPTEXEC) ${ecmccfg_DIR}applySlaveConfig.cmd, "CONFIG=$(MOTOR_CFG=-Motor-Nanotec-ST4118M1804-B), CFG_MACROS='I_RUN_MA=$(I_RUN_MA=900),I_STDBY_MA=$(I_STDBY_MA=200)'"
+$(SCRIPTEXEC) ${ecmccfg_DIR}addSlave.cmd, "SLAVE_ID=$(DRV_POS=2), HW_DESC=EL7062_CSP"
+
+# Motor electrical parameters. CHANGE THESE FOR YOUR MOTOR -- current too high
+# cooks the windings, too low stalls under load.
+$(SCRIPTEXEC) ${ecmccfg_DIR}applyComponent.cmd, "COMP=Motor-Generic-2Phase-Stepper, CH_ID=1, MACROS='I_MAX_MA=$(I_MAX_MA=1000),I_STDBY_MA=$(I_STDBY_MA=100),U_NOM_MV=$(U_NOM_MV=24000),L_COIL_UH=$(L_COIL_UH=3050),R_COIL_MOHM=$(R_COIL_MOHM=2630)'"
+
+# Drive current/velocity loop gains. Get these from the EL7062 auto-tune in the
+# expert panel (needs ENG_MODE=1), then paste the MACROS string it gives you.
+$(SCRIPTEXEC) ${ecmccfg_DIR}applyComponent.cmd, "COMP=Drive-Generic-Ctrl-Params, CH_ID=1, MACROS='$(DRV_CTRL_MACROS=L_COIL_UH=3100,R_COIL_MOHM=2620,I_TI=12,I_KP=59,V_TI=150,V_KP=176,P_KP=10)'"
+
+# Channel 2 is unused. ecmc verifies that every drive channel linked to motion
+# received SDO settings, and refuses to start otherwise -- so an unused channel
+# must be declared unused explicitly.
+$(SCRIPTEXEC) ${ecmccfg_DIR}applyComponent.cmd, "COMP=Generic-Ch-Not-Used, CH_ID=2"
+epicsEnvSet("DRV_SID", "${ECMC_EC_SLAVE_NUM}")
 
 # ---------------------------------------------------------------------------
-# 3. Apply -- build the process image (irreversible, as in phase 02)
+# 2. Apply -- build the process image (irreversible)
 # ---------------------------------------------------------------------------
 $(SCRIPTEXEC) ${ecmccfg_DIR}applyConfig.cmd
 
 # ---------------------------------------------------------------------------
-# 4. Create the axis
+# 3. Create the axis
 #
-# configureAxis.cmd sources the .ax file (which is nothing but epicsEnvSet) and
-# then runs addAxis.cmd, which turns those ~89 variables into ecmc Cfg.* calls
-# and loads the motor record database.
-#
-# DEV becomes the PV prefix for this axis: $(DEV):$(ECMC_MOTOR_NAME).
+# Both stages are YAML. The classic .ax dialect cannot express this hardware:
+# there is no ECMC_* variable for useAsCSPDrvEnc, which CSP requires.
+# README section 7 explains why, and what that says about the two dialects.
 # ---------------------------------------------------------------------------
 epicsEnvSet("DEV", "$(IOC)")
 
-# Two loaders, same resulting axis. AXIS_FMT selects which:
-#   AXIS_FMT=ax    (default) classic epicsEnvSet config -- pure iocsh
-#   AXIS_FMT=yaml            YAML config -- shells out to Python, see README s.8
-#
-# ecmcEpicsEnvSetCalcTernary is ecmccfg's way of doing an if/else: it sets the
-# variable to "" or "#- " and that either enables or comments out the next line.
-# This is iocsh, so this is what a conditional has to look like.
-epicsEnvSet("AXIS_CFG", "$(AXIS_CFG=./cfg/01-openloop.ax)")
+ecmcEpicsEnvSetCalcTernary(ECMC_STAGE1, "$(STAGE=1)==1", "", "#- ")
+ecmcEpicsEnvSetCalcTernary(ECMC_STAGE2, "$(STAGE=1)==2", "", "#- ")
 
-ecmcEpicsEnvSetCalcTernary(ECMC_USE_AX,   "'$(AXIS_FMT=ax)'=='ax'",   "", "#- ")
-$(ECMC_USE_AX)$(SCRIPTEXEC) ${ecmccfg_DIR}configureAxis.cmd, "CONFIG=${AXIS_CFG}"
+# --- Stage 1: one encoder, the drive's own step counter ---
+$(ECMC_STAGE1)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlAxis.cmd, "FILE=./cfg/01-openloop.yaml, DEV=${DEV}, AX_NAME=$(AX_NAME=M1), AXIS_ID=1, DRV_SID=${DRV_SID}, DRV_CH=01"
 
-ecmcEpicsEnvSetCalcTernary(ECMC_USE_YAML, "'$(AXIS_FMT=ax)'=='yaml'", "", "#- ")
-$(ECMC_USE_YAML)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlAxis.cmd, "FILE=${AXIS_CFG}, DEV=$(DEV)"
+# --- Stage 2: BiSS-C primary, then the step counter as CSP drive encoder ---
+# Order matters. The axis (and its encoder 1) must exist before a second
+# encoder can be attached to it.
+$(ECMC_STAGE2)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlAxis.cmd, "FILE=./cfg/02-closedloop.yaml, DEV=${DEV}, AX_NAME=$(AX_NAME=M1), AXIS_ID=1, DRV_SID=${DRV_SID}, DRV_CH=01, ENC_SID=${ENC_SID}, ENC_CH=01, ABS_OFFSET=$(ABS_OFFSET=0)"
+$(ECMC_STAGE2)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlEnc.cmd,  "FILE=./cfg/enc-openloop.yaml, DEV=${DEV}, ENC_SID=${DRV_SID}, ENC_CH=01"
 
 # ---------------------------------------------------------------------------
-# 5. Diagnostics
+# 4. Diagnostics
 # ---------------------------------------------------------------------------
 ecmcConfigOrDie "Cfg.EcSetDiagnostics(1)"
 ecmcConfigOrDie "Cfg.EcEnablePrintouts(0)"
 ecmcConfigOrDie "Cfg.EcSetDomainFailedCyclesLimit(100)"
-
-# Per-axis diagnostic printout. Enable while commissioning a specific axis:
 ecmcConfigOrDie "Cfg.SetDiagAxisIndex(1)"
 ecmcConfigOrDie "Cfg.SetDiagAxisFreq(2)"
 ecmcConfigOrDie "Cfg.SetDiagAxisEnable($(DIAG_AXIS=0))"
 
 # ---------------------------------------------------------------------------
-# 6. Go active
+# 5. Go active
 # ---------------------------------------------------------------------------
 $(SCRIPTEXEC) ${ecmccfg_DIR}setAppMode.cmd
 

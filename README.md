@@ -18,7 +18,8 @@ Two goals:
 - Rocky 9 host, ideally with a PREEMPT_RT kernel
 - EPICS base 7.x built, plus `asyn`, `motor`, `ruckig`, `ecmc`
 - Etherlab EtherCAT master installed (`/opt/etherlab`) and the `ethercat` CLI
-- Source checkouts of `ecmc` and `ecmccfg`
+- Source checkouts of `ecmc`, `ecmccfg` and `ecmccomp` (the last supplies the
+  EL7062 component configuration — see [03-motion-ioc/README.md](03-motion-ioc/README.md) §2)
 - A Beckhoff EtherCAT crate (phases 02–03; phases 00, 01 and much of 04 do not need one)
 
 Basic EPICS familiarity is assumed: records, PVs, `caget`/`caput`, what an IOC is.
@@ -52,8 +53,8 @@ where "where things live on this machine" is written down.
 |---|---|---|
 | [00-bootstrap](00-bootstrap/) | Build an ecmc IOC on a bare EPICS tree | none |
 | [01-discovery](01-discovery/) | Map the crate; read upstream examples | crate powered |
-| [02-daq-ioc](02-daq-ioc/) | Temperature DAQ IOC (PT100 / EL3202) | analog input terminal |
-| [03-motion-ioc](03-motion-ioc/) | Motion IOC: encoder, PID, homing, motor record | drive + motor |
+| [02-daq-ioc](02-daq-ioc/) | Temperature DAQ IOC (PT100 / EL3202) | ⚠ analog input terminal — **not on the current crate** |
+| [03-motion-ioc](03-motion-ioc/) | Motion IOC: CSP, dual encoder, BiSS-C, motor record | EL5042 + EL7062 |
 | 04-advanced *(planned)* | PLC engine, virtual axes, groups, plugins, `cpp_logic` | partly none |
 | 99-assessment *(planned)* | Strengths, limitations, and ecmc vs TwinCAT | none |
 
@@ -89,6 +90,7 @@ ethercatmaster/
   preflight.sh         verify the host can build and run ecmc
   bootstrap.sh         generate paths, stage ecmccfg, build the IOC
   stage-ecmccfg.sh     flatten ecmccfg into a usable install
+  stage-ecmccomp.sh    same for ecmccomp (component definitions, needed by phase 03)
   ecmcTrainingApp/     the IOC application (standard EPICS layout)
     ecmcTrainingIocApp/src/requireStub.cpp    verifying stand-in for `require`
   VERIFY.md            the go/no-go gate
@@ -100,12 +102,11 @@ ethercatmaster/
   README.md            PDO vs SDO, PV naming, record-to-EtherCAT binding
   st.cmd               the temperature IOC
 03-motion-ioc/
-  README.md            the five parts of an axis, homing, tuning, .ax vs YAML
-  st.cmd               the motion IOC (AXIS_CFG selects the stage)
-  cfg/01-openloop.ax   stage 1: motion, no protection
-  cfg/02-closedloop.ax stage 2: + PID, following error, soft limits
-  cfg/03-homing.ax     stage 3: + limit switches, homing
-  cfg/axis1.yaml       stage 3 in YAML, for comparison
+  README.md              CSP vs CSV, dual encoders, absolute offset, .ax vs YAML
+  st.cmd                 the motion IOC (STAGE=1 or 2)
+  cfg/01-openloop.yaml   stage 1: drive's own step counter, no real feedback
+  cfg/02-closedloop.yaml stage 2: BiSS-C absolute scale as primary encoder
+  cfg/enc-openloop.yaml  stage 2: the CSP drive encoder, loaded second
 04-advanced/, 99-assessment/   planned, not yet written
 appendix-require.md    what `require` is and why we do not use it
 ```
@@ -121,6 +122,7 @@ Pin both repositories to their **matched `11.0.8` release tags** — not `master
 |---|---|---|---|
 | `ecmc` | `v11.0.8` | `594ccb5` | 2026-06-16 |
 | `ecmccfg` | `11.0.8` | `ca9ea84` | 2026-06-16 |
+| `ecmccomp` | `0.2.16` | — | component definitions; needed for phase 03 |
 
 Released the same day; this is the pair the maintainers assert fits together.
 Watch the naming: `ecmc` prefixes `v`, `ecmccfg` dropped the prefix at 10.x.

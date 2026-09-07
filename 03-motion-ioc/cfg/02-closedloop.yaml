@@ -1,0 +1,125 @@
+# =============================================================================
+# Stage 2 -- closed loop on the BiSS-C absolute encoder
+#
+# TWO encoders, and understanding why is the whole point of this stage:
+#
+#   encoder 1 (here)             RLS BiSS-C absolute linear scale on the EL5042.
+#                                Measures the LOAD. Primary encoder: this is what
+#                                ecmc controls to and what the motor record reads.
+#
+#   encoder 2 (enc-openloop.yaml)  EL7062 internal microstep counter.
+#                                Measures the MOTOR. Flagged useAsCSPDrvEnc so the
+#                                drive's own CSP loop stays in a known coordinate
+#                                system.
+#
+# The two live in different coordinate systems -- one is the scale's absolute
+# frame, the other counts microsteps from power-on. Keeping both is not
+# redundancy, it is what makes centralised position control possible in CSP.
+#
+# Loaded by TWO calls, in this order:
+#   loadYamlAxis.cmd  FILE=./cfg/02-closedloop.yaml   ENC_SID=<EL5042 pos>
+#   loadYamlEnc.cmd   FILE=./cfg/enc-openloop.yaml    ENC_SID=<EL7062 pos>
+# =============================================================================
+
+axis:
+  id: ${AXIS_ID=1}
+  mode: CSP
+  autoEnable:
+    enableTimeout: 1.0
+    disableTimeout: 5.0
+
+epics:
+  name: ${AX_NAME=M1}
+  precision: 3
+  description: Training axis (closed loop, BiSS-C)
+  unit: mm
+  motorRecord:
+    fieldInit: 'RTRY=0,FOFF=Frozen'
+
+drive:
+  numerator: 1
+  denominator: 1048576
+  type: 1
+  setpoint: ec0.s$(DRV_SID).positionSetpoint${DRV_CH=01}
+  control: ec0.s$(DRV_SID).driveControl${DRV_CH=01}
+  status: ec0.s$(DRV_SID).driveStatus${DRV_CH=01}
+
+encoder:
+  desc: BISS-C
+  # RLS linear scale: 4096 counts per mm.
+  numerator: 1
+  denominator: 4096
+  type: 1                       # ABSOLUTE -- position is known at power-on
+  bits: 32                      # total width of the raw PDO value
+  absBits: 26                   # meaningful absolute bits, least significant
+
+  # absOffset maps the scale's raw absolute reading onto YOUR machine
+  # coordinates. This is the absolute-encoder equivalent of homing: you measure
+  # it once, write it here, and the axis knows where it is at every power-on
+  # forever after. The value below is from the PSI lab stage and is certainly
+  # WRONG for yours -- exercise 3 derives it.
+  absOffset: ${ABS_OFFSET=-15626.058}
+
+  position: ec0.s$(ENC_SID).positionActual${ENC_CH=01}
+  status: ec0.s$(ENC_SID).encoderStatus${ENC_CH=01}
+  ready: 2                      # bit in the status word: encoder ready
+  warning: 0
+  error:
+    - 1
+
+controller:
+  # NOW the loop is real: setpoint comes from the trajectory, feedback from an
+  # independent measurement of the load. Backlash, lost steps, and compliance
+  # all show up here as following error and get corrected.
+  #
+  # Start low. These are the PSI lab values for a 1 mm/rev stage -- a starting
+  # point, not a recommendation. Exercise 4 tunes them.
+  Kp: 0.1
+  Ki: 0.01
+  Kd: 0
+
+trajectory:
+  type: 1
+  axis:
+    velocity: 1
+    acceleration: 10
+    deceleration: 10
+    emergencyDeceleration: 20
+    jerk: 200
+  jog:
+    velocity: 1
+
+input:
+  limit:
+    forward: 'ec0.s$(DRV_SID).ONE.0'
+    backward: 'ec0.s$(DRV_SID).ONE.0'
+  home: 'ec0.s$(DRV_SID).ONE.0'
+  interlock: 'ec0.s$(DRV_SID).ONE.0'
+
+softlimits:
+  # Now meaningful: with an absolute encoder the position is trustworthy from
+  # power-on, with no homing move required. Set these to your real travel.
+  enable: true
+  backwardEnable: true
+  backward: ${SOFT_LOW=1.0}
+  forwardEnable: true
+  forward: ${SOFT_HIGH=45.0}
+
+monitoring:
+  lag:
+    # The most valuable protection on the machine, and only possible now that
+    # feedback is independent of the command. Catches a jam, a stall, a slipping
+    # coupling -- anything where the load stops following.
+    enable: true
+    tolerance: 1
+    time: 100
+  target:
+    enable: true
+    tolerance: 0.01
+    time: 10
+  velocity:
+    enable: true
+    max: 8
+    time:
+      trajectory: 100
+      drive: 200
