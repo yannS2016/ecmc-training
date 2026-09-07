@@ -70,7 +70,7 @@ Rocky ships the realtime kernel in a separate repository, enabled by a release p
 ```bash
 sudo dnf install -y rocky-release-rt
 sudo dnf install -y kernel-rt kernel-rt-devel tuned-profiles-realtime
-sudo dnf install -y rt-tests                    # cyclictest -- see the note below
+sudo dnf install -y realtime-tests              # cyclictest -- NOT called rt-tests here, see below
 ```
 
 > **Verify these package names on the host before trusting them.** Repository layout differs between Rocky
@@ -84,35 +84,30 @@ sudo dnf install -y rt-tests                    # cyclictest -- see the note bel
 > If `rocky-release-rt` does not exist, the repo may already be present but disabled — reach for
 > `--enablerepo=rt` rather than adding a third-party source.
 
-> **`rt-tests` may not be packaged for your release.** It carries `cyclictest`, which §8 needs. On this
-> host neither `rt` nor the default repos had it:
+> **The package is not called `rt-tests` on Rocky.** It carries `cyclictest`, which §8 needs, and the
+> RHEL name finds nothing:
 >
 > ```
 > $ sudo dnf install -y --enablerepo=rt rt-tests
 > Error: Unable to find a match: rt-tests
 > ```
 >
-> Find out where it lives before working around it — Rocky moves realtime content between the `rt` and
-> `nfv` repos across point releases:
+> Ask for the *file* rather than guessing at package names:
 >
 > ```bash
-> dnf repolist --all | grep -iE 'rt|nfv|realtime'
-> dnf provides '*/cyclictest'
+> $ dnf provides '*/cyclictest'
+> realtime-tests-2.9-1.el9.x86_64 : Programs that test various rt-features
+> Repo        : appstream
+> Filename    : /usr/bin/cyclictest
 > ```
 >
-> If it is genuinely absent, build it from upstream — it is small and self-contained:
+> So on Rocky 9 it is **`realtime-tests`**, in `appstream` — already enabled, no extra repo needed:
 >
 > ```bash
-> sudo dnf install -y numactl-devel
-> git clone https://git.kernel.org/pub/scm/utils/rt-tests/rt-tests.git
-> cd rt-tests && make && sudo make install prefix=/usr/local
+> sudo dnf install -y realtime-tests
 > ```
 >
-> `numactl-devel` is the dependency worth naming: without it `cyclictest` still builds, but loses the CPU
-> affinity support that `-a` needs for the tuned measurement in §8 — so it fails at the point where you
-> care, not at build time.
->
-> None of this blocks §3 or §4. `cyclictest` is a measurement tool, not a build dependency.
+> None of this blocks §3 or §4 in any case. `cyclictest` is a measurement tool, not a build dependency.
 
 `kernel-rt-devel` is the RT equivalent of the `kernel-devel` from `INSTALL.md` step 1, and §4 cannot
 proceed without it.
