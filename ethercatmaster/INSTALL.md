@@ -23,6 +23,9 @@ Every step is idempotent or has an explicit rollback (§11). Steps 1-9 need `sud
 > The MAC above is repeated in [`config/site-ethercat.env`](config/site-ethercat.env), which is the only
 > copy anything reads. On a hardware change edit that file; this table is documentation.
 
+Secure Boot is **disabled** on this host (`mokutil --sb-state`), so unsigned out-of-tree modules load
+without a MOK. The signing errors during `make modules_install` are cosmetic here — see §4.
+
 `eno1` is the EtherCAT NIC: Intel silicon, well supported by EtherLab, and carrying no IP so taking it
 costs nothing. The management NIC uses `r8152`, for which EtherLab ships no driver at all, so it cannot be
 hijacked by a configuration mistake.
@@ -276,15 +279,53 @@ sudo make modules_install install
 sudo depmod -a
 ```
 
+> **Let `depmod` finish.** `install` is the *second* target on that line, so interrupting
+> `modules_install` leaves `/opt/etherlab` empty — no library, no headers, no `ethercat` CLI — and
+> `modules.dep` half-written. If you did interrupt it, just run the two commands again.
+
+### The `sign-file` errors during install are expected
+
+`modules_install` prints this once per module, and it is not a failure:
+
+```
+  INSTALL /lib/modules/<ver>/ethercat/master/ec_master.ko
+  SIGN    /lib/modules/<ver>/ethercat/master/ec_master.ko
+- SSL error:FFFFFFFF80000002:system library::No such file or directory: crypto/bio/bss_file.c:67
+sign-file: certs/signing_key.pem: No such file or directory
+```
+
+Rocky's kernel is configured with `CONFIG_MODULE_SIG_ALL=y`, so kbuild tries to sign everything it
+installs. The private key is Red Hat's and ships with nobody. Note the ordering: `INSTALL` completes,
+*then* `SIGN` fails — the module is on disk and usable.
+
+Whether it matters is decided by one command, already run in step 0:
+
+```bash
+mokutil --sb-state
+```
+
+`SecureBoot disabled` (this host) — ignore the noise. To silence it, override the flag; command-line
+variables reach the kernel sub-make through `MAKEFLAGS`:
+
+```bash
+sudo make modules_install install CONFIG_MODULE_SIG_ALL=
+```
+
+`SecureBoot enabled` — the modules will load no better than they signed. Enrol your own MOK and sign
+them, or accept the trade in §14.8.
+
 Verify what landed:
 
 ```bash
-ls -1 /lib/modules/"$(uname -r)"/ethercat/     # ec_master.ko, ec_generic.ko, ec_e1000e.ko
+find /lib/modules/"$(uname -r)"/ethercat -name '*.ko'   # master/ec_master.ko, devices/ec_generic.ko
 ls -1 /opt/etherlab/lib/libethercat.*
 ls -1 /opt/etherlab/include/ecrt.h
 ls -1 /opt/etherlab/bin/ethercat /opt/etherlab/sbin/ethercatctl
-modinfo /lib/modules/"$(uname -r)"/ethercat/ec_master.ko | grep -E 'vermagic|version'
+modinfo /lib/modules/"$(uname -r)"/ethercat/master/ec_master.ko | grep -E 'vermagic|version'
 ```
+
+Modules install into **subdirectories** (`master/`, `devices/`, `examples/`), not flat — `ls` on the
+`ethercat/` directory alone shows only those three names, which reads like a failed install when it is not.
 
 The `vermagic` must match `uname -r`.
 
@@ -544,6 +585,8 @@ cd "$EC_SRC" && make clean
 | compile error inside `devices/e1000e/` | RHEL backports diverged from upstream 5.14 | drop `--enable-e1000e`, `make clean`, rebuild |
 | `Invalid module format` / `dmesg: version magic ... should be ...` | module built against a different kernel | rebuild against the running kernel (§12) |
 | module load refused, `Key was rejected by service` | Secure Boot on, module unsigned | enrol a MOK, or disable Secure Boot knowing the cost |
+| `sign-file: certs/signing_key.pem: No such file` during `modules_install` | `CONFIG_MODULE_SIG_ALL=y`, no private key | not a failure — see §4; harmless with Secure Boot off |
+| `/opt/etherlab` empty after a successful build | `modules_install install` interrupted before `install` ran | re-run both targets, let `depmod` finish |
 | `ethercat: command not found` | `/opt/etherlab/bin` not on `PATH` | step 9 `profile.d` line |
 | `libethercat.so.1: cannot open shared object file` | missed step 5 | `ldconfig` entry |
 | `ERROR: No network cards for EtherCAT specified` | `MASTER0_DEVICE` empty | step 7 |

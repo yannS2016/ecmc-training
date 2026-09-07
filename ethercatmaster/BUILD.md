@@ -288,8 +288,15 @@ Kernel: `5.14.0-687.10.1.el9_8.0.1.x86_64` → Rocky/RHEL **9.8**, `linuxversion
 
 - **`eno1` is the EtherCAT NIC.** Intel I219-LM on `e1000e` is one of the best-supported combinations for
   EtherLab, and it carries no IP, so taking it is non-disruptive.
-- **`--enable-e1000e` will pass configure** — `netdev-5.14-ethercat.c` exists. Whether it compiles against
-  el9.8 headers is §4c level 2, unknown until you run `make`. Plan for the fallback.
+- **`--enable-e1000e` passes configure but does not compile.** `netdev-5.14-ethercat.c` exists, so the
+  filename match succeeds (§4c level 1) — and then the build fails in `devices/e1000e/ethtool-*.c` against
+  el9.8 headers (§4c level 2, §5). This is settled, not a risk to plan around: **build `generic` only.**
+- **The master core itself needs two patches**, both `LINUX_VERSION_CODE` guards defeated by RHEL
+  backports: `master/cdev.c` (`vm_flags`) and `master/module.c` (`class_create` arity). See
+  [`patches/`](patches/). With those applied and `--enable-generic` alone, the build completes:
+  `ec_master.ko` and `ec_generic.ko` install cleanly.
+- **Secure Boot is disabled here**, confirmed with `mokutil --sb-state`, so the unsigned modules load
+  without a MOK and the `sign-file` errors during `modules_install` are cosmetic.
 - **Drop `--enable-igb` and `--enable-igc`** — no such hardware here. Every extra driver is more build
   surface and more kernel code loaded for nothing.
 - **The management NIC is structurally safe.** EtherLab ships no `r8152` driver, so `ethercatctl` cannot
