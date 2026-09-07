@@ -184,7 +184,6 @@ cd "$EC_SRC"
   --sysconfdir=/etc \
   --with-linux-dir=/usr/src/kernels/"$(uname -r)" \
   --enable-generic \
-  --enable-e1000e \
   --enable-tool \
   --enable-userlib \
   --enable-hrtimer \
@@ -200,14 +199,47 @@ Why each flag:
 | `--sysconfdir=/etc` | puts the config at `/etc/ethercat.conf`. Without it you get `/opt/etherlab/etc/ethercat.conf` and `ethercatctl` will not find it. |
 | `--with-linux-dir=...` | explicit beats the `/lib/modules/$(uname -r)/build` symlink guess. |
 | `--enable-generic` | the fallback that always works. Default is on, stated for clarity. |
-| `--enable-e1000e` | **default is `no`.** Without this there is no `ec_e1000e.ko`. Matches the I219-LM. |
 | `--enable-tool` | the `ethercat` CLI. `ecmccfg/startup.cmd:154` calls it; `preflight.sh` checks for it. Default yes. |
 | `--enable-userlib` | `libethercat.so` + `ecrt.h`. **This is the half ecmc compiles against.** Default yes. |
 | `--enable-hrtimer` | default `no`; use high-resolution timers for idle-phase scheduling. |
 | `--disable-eoe` | default is `yes`. Ethernet-over-EtherCAT bridges the fieldbus into the host IP stack; off unless a slave needs it. See §10.4. |
 
-Deliberately **not** enabled: `--enable-igb`, `--enable-igc`, `--enable-8139too`, `--enable-r8169` — no
-such hardware here, and every extra driver is more kernel code loaded for nothing.
+Deliberately **not** enabled: any native driver. `--enable-igb`, `--enable-igc`, `--enable-8139too` and
+`--enable-r8169` match no hardware here. `--enable-e1000e` looks exactly right for the I219-LM, and passes
+configure — but **does not compile on Rocky 9.8**.
+
+### Why not the native `e1000e` driver
+
+It fails at `devices/e1000e/ethtool-5.14-ethercat.c` with a wall of
+`-Werror=incompatible-pointer-types`, because Rocky 9.8 has backported ethtool API changes from four
+different mainline releases into a kernel still numbered 5.14:
+
+| Symbol the kernel now expects | Landed in mainline |
+|---|---|
+| `kernel_ethtool_coalesce` in `get_coalesce`/`set_coalesce` | 5.15 |
+| `kernel_ethtool_ringparam` in `get_ringparam`/`set_ringparam` | 5.17 |
+| `ethtool_keee` in `get_eee`/`set_eee` | 6.9 |
+| `kernel_ethtool_ts_info` in `get_ts_info` | 6.11 |
+
+Unlike the `cdev.c` failure in step 2, **this one cannot be patched with a version guard.** Those files
+contain *zero* `LINUX_VERSION_CODE` conditionals — verify with:
+
+```bash
+grep -c LINUX_VERSION_CODE "$EC_SRC"/devices/e1000e/*-5.14-ethercat.c   # all zero
+```
+
+They are verbatim forks of mainline 5.14's driver (`BUILD.md` §4a). There is no guard to correct; the file
+simply *is* upstream 5.14, and Rocky 9.8 is not. Making it build means porting four API families — that is
+maintaining a driver fork, not applying a patch.
+
+**Use `generic`.** It talks to the NIC through the normal Linux stack using only long-stable socket APIs,
+so it has no version coupling and builds anywhere. The cost is latency and jitter, which does not matter
+for training. `BUILD.md` §3 has the trade-off in full.
+
+> **If you want to try anyway**, the one option with a real chance is
+> `--with-e1000e-kernel=6.12`. Of the shipped variants, only the 6.12 fork uses all four of the newer APIs
+> that el9.8 actually has. It is a coin flip — 6.12's driver may equally use *other* things el9.8 lacks —
+> so treat it as an experiment after the bus is working on `generic`, never as the path to first light.
 
 Check the output before continuing:
 

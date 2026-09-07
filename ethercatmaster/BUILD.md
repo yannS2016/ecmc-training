@@ -193,6 +193,12 @@ Two things worth taking from this:
 
 - **The risk is not confined to native drivers.** It applies to any upstream code guarded by
   `LINUX_VERSION_CODE`, the master core included. Choosing `generic` does not avoid it.
+- **And the native `e1000e` driver failed too, on the same host, for a related but worse reason.** Its
+  ethtool file needs `kernel_ethtool_coalesce` (5.15), `kernel_ethtool_ringparam` (5.17), `ethtool_keee`
+  (6.9) and `kernel_ethtool_ts_info` (6.11) -- four API families backported into a 5.14 kernel. Crucially
+  the `*-5.14-ethercat.c` files carry **zero** `LINUX_VERSION_CODE` guards (§4a: they are verbatim forks),
+  so there is nothing to correct with a guard patch. `INSTALL.md` step 3 records the detail and settles on
+  `generic`.
 - **Upstream already knows this pattern** — `devices/generic.c:265` guards on `SUSE_VERSION` alongside the
   version test for exactly this reason. It simply has no RHEL equivalent anywhere in the tree.
 
