@@ -28,10 +28,13 @@ dep_version() {
 
 # dep_dir <name> -- full path to the pinned version, or empty if not declared.
 dep_dir() {
-  local name="$1" v
+  local name="$1" v r
   v="$(dep_version "$name")" || return 1
   [[ -n "$v" ]] || return 1
-  printf '%s/%s/%s\n' "$DEPS_DIR" "$name" "$v"
+  # The directory is named by the SITE release (R0.19.4), not the upstream ref
+  # (v0.19.4). See release_name below.
+  r="$(dep_release "$name")"
+  printf '%s/%s/%s\n' "$DEPS_DIR" "$name" "$r"
 }
 
 # ---------------------------------------------------------------------------
@@ -58,4 +61,46 @@ module_dir() {
   else
     printf '%s/%s\n' "${EPICS_MODULES:-}" "$name"
   fi
+}
+
+# ---------------------------------------------------------------------------
+# Source-dependency release naming.
+#
+# Two different names for the same thing, and they must not be confused:
+#
+#   upstream ref     what you check out from git: ruckig tags as "v0.19.4"
+#   release name     what the directory is called here: "R0.19.4"
+#
+# The site convention is RX.Y.Z, matching the EPICS module tree (asyn/R4.42-1.0.0).
+# Upstream projects use whatever they like, so the ref is translated:
+# strip a leading v or V, prepend R.
+#
+# A package whose upstream naming does not survive that can override it in
+# deps.conf with --release=<name> in the options field.
+# ---------------------------------------------------------------------------
+release_name() {
+  local v="$1"
+  v="${v#v}"; v="${v#V}"
+  printf 'R%s\n' "$v"
+}
+
+# dep_options <name> -- the options field from deps.conf, or empty.
+dep_options() {
+  local name="$1" conf="$DEPS_CONF_DIR/deps.conf"
+  [[ -f "$conf" ]] || return 1
+  sed 's/[[:space:]]*#.*$//' "$conf" \
+    | awk -v n="$name" '$1 == n { $1=""; $2=""; $3=""; $4=""; sub(/^ +/,""); print; exit }'
+}
+
+# dep_release <name> -- release directory name, honouring any --release= override.
+dep_release() {
+  local name="$1" opts tok
+  opts="$(dep_options "$name")"
+  for tok in $opts; do
+    if [[ "$tok" == --release=* ]]; then
+      printf '%s\n' "${tok#--release=}"
+      return 0
+    fi
+  done
+  release_name "$(dep_version "$name")"
 }

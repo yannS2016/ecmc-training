@@ -95,7 +95,7 @@ ethercatmaster/
   MODULES.md           what each EPICS module is, why ecmc needs it, how it is configured
   install-deps.sh      OS packages (compiler, perl, readline, libtirpc, cmake, python)
   deps.conf            source dependencies and their pinned versions
-  build-deps.sh        fetch and build them into $DEPS_DIR/<package>/<version>
+  build-deps.sh        fetch and build them into $DEPS_DIR/<package>/RX.Y.Z
   deps-lib.sh          shared path lookup, so nothing hardcodes a dep path
   preflight.sh         verify the host can build and run ecmc
   bootstrap.sh         generate paths, stage ecmccfg, build the IOC

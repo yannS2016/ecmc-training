@@ -63,7 +63,7 @@ somewhere else entirely:
 | | Variable | Site value | Holds |
 |---|---|---|---|
 | EPICS modules | `EPICS_MODULES` | `/epics/modules/<base-ver>` | asyn, motor, ecmc, ecmccfg, ecmccomp |
-| Source dependencies | `DEPS_DIR` | `/cds/group/pcds/pkg_mgr` | ruckig, as `<package>/<version>` |
+| Source dependencies | `DEPS_DIR` | `/cds/group/pcds/pkg_mgr` | ruckig, as `<package>/R<version>` |
 
 `build-deps.sh` populates the second; `bootstrap.sh` writes the resulting path
 into `RELEASE.local` so the IOC build finds it. Keeping them apart matters
@@ -210,7 +210,7 @@ It reads `00-bootstrap/deps.conf`, checks out the pinned tag, builds, and writes
 the resolved commit to `deps.lock`. The equivalent by hand:
 
 ```bash
-cd $DEPS_DIR/ruckig/v0.19.4
+cd $DEPS_DIR/ruckig/R0.19.4
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
 cmake --build build -j$(nproc)
 ```

@@ -29,7 +29,7 @@ ETHERLAB = /opt/etherlab
 # A CMake project, built by ../build-deps.sh into $DEPS_DIR/ruckig/<version>.
 # The library stays in its own build/ directory and the application Makefile
 # sets an rpath into it, so this path must survive as long as the IOC runs.
-RUCKIG = /SET-DEPS_DIR-IN-site.conf/ruckig
+RUCKIG = /SET-DEPS_DIR-IN-site.conf/ruckig/R0.19.4
 
 # --- ecmccfg -----------------------------------------------------------------
 # The SOURCE checkout, not the staged install. Used only to compile

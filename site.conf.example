@@ -36,7 +36,7 @@ ETHERLAB=/opt/etherlab
 
 # --- Source dependencies ----------------------------------------------------
 # Where build-deps.sh keeps libraries built from source (ruckig today).
-# Site convention: $DEPS_DIR/<package>/<version>, so several versions coexist
+# Site convention: $DEPS_DIR/<package>/RX.Y.Z, so several versions coexist
 # and each consumer pins the one it wants.
 DEPS_DIR=/opt/pkg_mgr
 
