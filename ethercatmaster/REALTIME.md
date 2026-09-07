@@ -447,6 +447,16 @@ Three regions, three different causes:
 | **Shoulder** — smooth decay | 3–44 µs, 0.6% | scheduler tick, load balancing, IRQs, RCU callbacks | CPU isolation, §5 |
 | **Far outliers** — sparse, orders of magnitude out | ~24 samples to 298 µs | SMI, or P-state transitions | firmware, §6 |
 
+
+Two properties of the far tail carry more information than its magnitude:
+
+- **Rate.** Divide the outlier count by the run duration. On this host, 25 samples over 600 s is one every
+  ~24 seconds. Scheduling interference tracks load; it does not arrive on a fixed interval. A periodic
+  outlier is something polling — firmware, or a timer.
+- **Clustering.** Random interference scatters. A *recurring* event lands repeatedly at nearly the same
+  duration. This host showed `237, 238, 239` and `248, 249, 250` — three consecutive microsecond buckets,
+  once each, twice over. That is one event type recurring, not twenty unrelated ones.
+
 A big `Max` with a clean body and a handful of far outliers is **not** a kernel problem, and tuning the
 kernel harder will not move it. Conversely a fat shoulder with no far outliers is pure scheduling, and
 firmware settings will do nothing for it. Knowing which you have decides where the next hour goes.
