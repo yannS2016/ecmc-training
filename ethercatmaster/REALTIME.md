@@ -418,7 +418,7 @@ something. Read the **Max**, never the Avg — RT is a statement about the worst
 | < 50 µs | good; 1 kHz motion is comfortable |
 | 50–150 µs | usable at 1 kHz; fix firmware and isolation before going faster |
 | > 200 µs | something is wrong — revisit §5 and §6 before blaming the kernel |
-| clean body, rare huge outlier | almost always SMI (§6) |
+| clean body, rare huge outlier | not the kernel — measure `MSR_SMI_COUNT` before assuming SMI |
 
 Run both **under realistic load** — `stress-ng`, or simply the IOC plus a live bus. An idle machine
 measures nothing interesting, and an idle measurement is the one that flatters you.
@@ -445,7 +445,7 @@ Three regions, three different causes:
 |---|---|---|---|
 | **Body** — one dominant bucket | 2 µs, 99.36% | none; this is the kernel working | — |
 | **Shoulder** — smooth decay | 3–44 µs, 0.6% | scheduler tick, load balancing, IRQs, RCU callbacks | CPU isolation, §5 |
-| **Far outliers** — sparse, orders of magnitude out | ~24 samples to 298 µs | SMI, or P-state transitions | firmware, §6 |
+| **Far outliers** — sparse, orders of magnitude out | ~25 samples to 298 µs | SMI, P-state transitions, or kernel housekeeping — **measure, do not guess** | §6, or isolation |
 
 
 Two properties of the far tail carry more information than its magnitude:
@@ -472,11 +472,25 @@ To confirm SMI directly, read the firmware's own counter before and after a run:
 
 ```bash
 sudo dnf install -y msr-tools
-sudo rdmsr -a 0x34          # MSR_SMI_COUNT, per CPU
+sudo rdmsr -a 0x34; sleep 60; sudo rdmsr -a 0x34    # MSR_SMI_COUNT, per CPU
 ```
 
-If it climbs on an otherwise idle machine, firmware is preempting the kernel and no kernel setting will
-change that. §6 is the only lever.
+**Read it as a test, not a formality.** On this host both reads returned `0x1e3f` on all four cores —
+7743 SMIs accumulated during firmware init at boot, and **none since**. That eliminated firmware as the
+cause of a tail whose shape had pointed straight at it, and redirected the work to the next candidate
+rather than into the BIOS.
+
+A count that climbs on an idle machine means firmware is preempting the kernel and no kernel setting will
+change it; §6 is the only lever. A count that does not move means look elsewhere:
+
+| Next candidate | Test | Reboot? |
+|---|---|---|
+| P-state transitions | `cpupower frequency-set -g performance`, re-measure | no |
+| Kernel housekeeping — RCU, workqueues, thermal polling, watchdog | isolate cores (§5), re-measure | yes |
+| The EtherCAT master's own idle-phase bus scanning | `systemctl stop ethercat`, re-measure | no |
+
+Each is cheap, and each isolates one variable. Run them in that order — cheapest and most reversible
+first — and stop when the tail moves.
 
 ### Recording the comparison
 
