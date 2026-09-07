@@ -16,7 +16,7 @@
 
 # Directory holding deps.conf. Set by the caller if it differs.
 : "${DEPS_CONF_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-: "${DEPS_DIR:=/cds/group/pcds/pkg_mgr}"
+: "${DEPS_DIR:=}"
 
 # dep_version <name> -- the version pinned in deps.conf, or empty.
 dep_version() {

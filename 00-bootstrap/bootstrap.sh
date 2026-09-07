@@ -32,7 +32,7 @@ source "$repo/site.conf"
 : "${ECMC_SRC:?ECMC_SRC must be set in site.conf}"
 : "${ECMCCFG_SRC:?ECMCCFG_SRC must be set in site.conf}"
 ETHERLAB="${ETHERLAB:-/opt/etherlab}"
-DEPS_DIR="${DEPS_DIR:-/cds/group/pcds/pkg_mgr}"
+: "${DEPS_DIR:?DEPS_DIR must be set in site.conf}"
 
 # Source dependencies live at $DEPS_DIR/<package>/<version>, so the version
 # comes from deps.conf rather than being hardcoded here.

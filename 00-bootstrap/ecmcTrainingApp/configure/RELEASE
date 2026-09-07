@@ -16,7 +16,7 @@ ECMC     = $(SUPPORT)/ecmc
 ECMCCFG  = $(SUPPORT)/ecmccfg
 # Source dependencies live outside the EPICS module tree; bootstrap.sh writes
 # the real path into RELEASE.local from DEPS_DIR in site.conf.
-RUCKIG   = /cds/group/pcds/pkg_mgr/ruckig/v0.19.4
+RUCKIG   = /SET-DEPS_DIR-IN-site.conf/ruckig
 
 # exprtkSupport ships inside the ecmc source tree
 EXPRTK   = $(ECMC)/exprtkSupport

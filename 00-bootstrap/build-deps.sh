@@ -49,10 +49,11 @@ if [[ -f "$repo/site.conf" ]]; then
   source "$repo/site.conf"
 fi
 
-# Site convention: /cds/group/pcds/pkg_mgr/<package>. Override in site.conf.
-DEPS_DIR="${DEPS_DIR:-/cds/group/pcds/pkg_mgr}"
+# Layout is $DEPS_DIR/<package>/<version>. DEPS_DIR is site-specific, so it has
+# no default here; see sites/ for real values.
+DEPS_DIR="${DEPS_DIR:-}"
 if [[ -z "$DEPS_DIR" ]]; then
-  echo "ERROR: DEPS_DIR is empty; set it in site.conf" >&2
+  echo "ERROR: DEPS_DIR is not set. Add it to site.conf (see sites/ for examples)." >&2
   exit 1
 fi
 

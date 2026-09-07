@@ -30,7 +30,14 @@ hdr()  { printf '\n== %s ==\n' "$1"; }
 hdr "site configuration"
 if [[ ! -f "$repo/site.conf" ]]; then
   fail "site.conf not found"
-  why  "cp $repo/site.conf.example $repo/site.conf and edit it."
+  if compgen -G "$repo/sites/*.conf" >/dev/null; then
+    why "Start from a site profile if one matches this facility:"
+    for s in "$repo"/sites/*.conf; do
+      why "    cp sites/$(basename "$s") site.conf"
+    done
+    why "Otherwise start from the generic template:"
+  fi
+  why  "    cp site.conf.example site.conf     # then edit"
   echo
   echo "Cannot continue without site.conf."
   exit 1
@@ -89,7 +96,7 @@ fi
 # --- support modules --------------------------------------------------------
 hdr "support modules"
 mods="${EPICS_MODULES:-}"
-deps="${DEPS_DIR:-/cds/group/pcds/pkg_mgr}"
+deps="${DEPS_DIR:-}"
 
 check_module() {
   local name="$1" path="$2" lib="$3"
@@ -205,9 +212,17 @@ fi
 # resolve the path rather than assuming it.
 # shellcheck disable=SC1091
 DEPS_DIR="$deps" source "$here/deps-lib.sh"
-ruckig_dir="$(dep_dir ruckig)"
+if [[ -n "$deps" ]]; then
+  ruckig_dir="$(dep_dir ruckig)"
+else
+  ruckig_dir=""
+fi
 
-if [[ -z "$ruckig_dir" ]]; then
+if [[ -z "$deps" ]]; then
+  fail "DEPS_DIR is not set in site.conf"
+  why  "It is where source dependencies live, as \$DEPS_DIR/<package>/<version>."
+  why  "There is no default: it differs per site. See sites/ for real values."
+elif [[ -z "$ruckig_dir" ]]; then
   fail "ruckig is not declared in 00-bootstrap/deps.conf"
 elif [[ -d "$ruckig_dir" ]]; then
   if ls "$ruckig_dir"/build/libruckig.* >/dev/null 2>&1; then

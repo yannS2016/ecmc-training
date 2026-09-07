@@ -39,14 +39,17 @@ For motion control specifically, add
 coordinated motion needs a bounded worst-case cycle, not just an average one.
 
 ```bash
+cp sites/pcds.conf site.conf       # or site.conf.example on your own hardware, then edit
 ./00-bootstrap/install-deps.sh     # OS packages for EPICS and the ecmc stack
 ./00-bootstrap/build-deps.sh       # source dependencies (ruckig), pinned in deps.conf
-cp site.conf.example site.conf     # edit to match this host — this is the only file you edit
 ./00-bootstrap/preflight.sh        # must exit 0 before continuing
 ./00-bootstrap/bootstrap.sh
 ```
 
-`site.conf` is gitignored. Every script reads it, so it is the single place
+`site.conf` is gitignored, so each host keeps its own. `sites/` holds committed
+profiles for facilities that run this course repeatedly; `site.conf.example` is
+the generic template for anyone else. Every script reads `site.conf`, so it is
+the single place
 where "where things live on this machine" is written down.
 
 ## Course structure
@@ -82,7 +85,8 @@ you should be able to explain by the end.
 ## Repository layout
 
 ```
-site.conf.example      copy to site.conf and edit — the only machine-specific file
+site.conf.example      generic template: every key, documented, with placeholders
+sites/                 committed per-site profiles (pcds.conf, ...) — copy one to site.conf
 ethercatmaster/
   BUILD.md             why the EtherCAT master build is kernel-coupled
   INSTALL.md           installing it, command by command
