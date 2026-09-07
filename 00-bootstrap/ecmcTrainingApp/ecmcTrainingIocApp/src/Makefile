@@ -40,7 +40,9 @@ USR_LDFLAGS  += -Wl,-rpath,'$(RUCKIG)/build'
 # ecmccfg is mostly iocsh scripts, but it does ship one aSub record routine,
 # ECATtimestamp, used by the EtherCAT timestamping templates.  A require-based
 # site gets it from the loaded ecmccfg library; we compile it in.
-# $(ECMCCFG) must point at the ecmccfg SOURCE checkout (not the staged install).
+# $(ECMCCFG) comes from configure/CONFIG_SITE, not RELEASE: ecmccfg is a script
+# and template tree, not an EPICS module. It must point at the SOURCE checkout,
+# not the staged install -- the staged directory has no src/.
 SRC_DIRS     += $(ECMCCFG)/src
 USR_DBDFLAGS += -I $(ECMCCFG)/dbd
 

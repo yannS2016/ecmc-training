@@ -1,9 +1,40 @@
-# CONFIG_SITE -- build settings for the ecmc training IOC.
+# CONFIG_SITE -- build settings and paths to NON-EPICS dependencies.
 #
-# Module paths live in RELEASE / RELEASE.local, not here.
+# DO NOT EDIT for site paths. bootstrap.sh generates CONFIG_SITE.local from
+# site.conf, and that overrides the defaults here.
+#
+# The split against configure/RELEASE is the EPICS convention:
+#
+#   RELEASE      EPICS support modules -- validated by convertRelease.pl,
+#                exported into envPaths, subject to CHECK_RELEASE.
+#   CONFIG_SITE  everything else -- external libraries, tools, build options.
+#
+# Everything below is an ordinary library or file tree with no EPICS module
+# structure, which is why it lives here rather than in RELEASE.
 
-# Fail the build if a path in RELEASE does not exist. Keep this on: a typo in
-# RELEASE.local otherwise shows up as a confusing link error much later.
+# Fail the build if a path in RELEASE does not exist. Keep this on: a typo
+# otherwise surfaces as a confusing link error much later.
+#
+# Note it does NOT check the paths in this file. They are validated at the point
+# of use instead: preflight.sh checks them before you build, and the
+# -I/-L flags below fail visibly at compile or link time.
 CHECK_RELEASE = YES
+
+# --- Etherlab EtherCAT master ------------------------------------------------
+# An autotools install prefix providing ecrt.h and libethercat.
+# Built and installed per ../../ethercatmaster/INSTALL.md.
+ETHERLAB = /opt/etherlab
+
+# --- ruckig ------------------------------------------------------------------
+# A CMake project, built by ../build-deps.sh into $DEPS_DIR/ruckig/<version>.
+# The library stays in its own build/ directory and the application Makefile
+# sets an rpath into it, so this path must survive as long as the IOC runs.
+RUCKIG = /SET-DEPS_DIR-IN-site.conf/ruckig
+
+# --- ecmccfg -----------------------------------------------------------------
+# The SOURCE checkout, not the staged install. Used only to compile
+# ECATtimestamp.cpp into the IOC; the staged copy is a runtime concern handled
+# by ecmcPaths.cmd. The staged directory has no src/.
+ECMCCFG = /SET-ECMCCFG_SRC-IN-site.conf
 
 -include $(TOP)/configure/CONFIG_SITE.local

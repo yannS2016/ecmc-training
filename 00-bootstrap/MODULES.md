@@ -317,16 +317,54 @@ in `VERIFY.md`; this is the single most common source of confusion in the course
 `ecmcTrainingApp/` is a standard EPICS application, deliberately kept close to
 upstream's `ecmc/ecmcExampleTop/` so you can diff them.
 
-### `configure/RELEASE` and `RELEASE.local`
+### `RELEASE` vs `CONFIG_SITE` — and where ecmc gets this wrong
 
-`RELEASE` carries defaults; `bootstrap.sh` generates `RELEASE.local` from
-`site.conf` and that wins. **This file is where dependency resolution happens** —
-at build time, by the standard EPICS mechanism. A `require`-based site resolves
-dependencies at *runtime* from a `.dep` file instead; that difference is the whole
-of `../appendix-require.md`.
+EPICS separates two kinds of path, and the separation is not cosmetic:
 
-`CHECK_RELEASE = YES` is deliberate: a typo in a path fails the build immediately
-instead of surfacing as a confusing link error later.
+| | `configure/RELEASE` | `configure/CONFIG_SITE` |
+|---|---|---|
+| Holds | EPICS support modules | everything else: external libraries, tools, build options |
+| Validated by | `convertRelease.pl`, and `CHECK_RELEASE` | nothing — checked at point of use |
+| Exported to | `envPaths`, readable by the IOC | build only |
+| Requires | a module tree: `configure/`, `lib/`, `dbd/`, `db/` | nothing in particular |
+
+**ecmc's own `configure/RELEASE` does not respect this.** It declares:
+
+```make
+EXPRTK   = $(TOP)/exprtkSupport
+RUCKIG   = $(SUPPORT)/ruckig
+ETHERLAB = $(SUPPORT)/etherlab
+ECMCCFG  = $(SUPPORT)/ecmccfg
+ECMCCOMP = $(SUPPORT)/ecmccomp
+```
+
+alongside `ASYN` and `MOTOR`. Only the latter two are EPICS modules. `ruckig` is a
+CMake project, `etherlab` an autotools install prefix, and `ecmccfg`/`ecmccomp`
+are script-and-template trees with no `configure/` directory at all. Putting them
+in `RELEASE` asks `CHECK_RELEASE` to validate things that were never modules and
+exports them into `envPaths` where nothing reads them.
+
+This course's application splits them properly:
+
+- **`RELEASE`** → `ASYN`, `MOTOR`, `ECMC`, `EPICS_BASE`
+- **`CONFIG_SITE`** → `ETHERLAB`, `RUCKIG`, `ECMCCFG`
+
+`bootstrap.sh` generates `RELEASE.local` and `CONFIG_SITE.local` from `site.conf`;
+both are gitignored. `CONFIG` includes `RELEASE` first and `CONFIG_SITE` second,
+so `CONFIG_SITE` may reference variables set in `RELEASE`.
+
+There is no `EXPRTK` entry at all, because our Makefile never references it. We
+link `libexprtkSupport`, which ecmc builds into its own
+`lib/$(EPICS_HOST_ARCH)`, so the `-L` arrives via `ECMC`.
+
+**`RELEASE` is still where dependency resolution happens** — at build time, by the
+standard EPICS mechanism. A `require`-based site resolves dependencies at
+*runtime* from a `.dep` file instead; that difference is the whole of
+`../appendix-require.md`.
+
+`CHECK_RELEASE = YES` is deliberate: a typo in a module path fails the build
+immediately instead of surfacing as a confusing link error later. It does not
+check `CONFIG_SITE` paths — `preflight.sh` covers those before you build.
 
 ### `ecmcTrainingIocApp/src/Makefile`
 
