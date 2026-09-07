@@ -69,7 +69,8 @@ Rocky ships the realtime kernel in a separate repository, enabled by a release p
 
 ```bash
 sudo dnf install -y rocky-release-rt
-sudo dnf install -y kernel-rt kernel-rt-devel rt-tests tuned-profiles-realtime
+sudo dnf install -y kernel-rt kernel-rt-devel tuned-profiles-realtime
+sudo dnf install -y rt-tests                    # cyclictest -- see the note below
 ```
 
 > **Verify these package names on the host before trusting them.** Repository layout differs between Rocky
@@ -82,6 +83,36 @@ sudo dnf install -y kernel-rt kernel-rt-devel rt-tests tuned-profiles-realtime
 >
 > If `rocky-release-rt` does not exist, the repo may already be present but disabled — reach for
 > `--enablerepo=rt` rather than adding a third-party source.
+
+> **`rt-tests` may not be packaged for your release.** It carries `cyclictest`, which §8 needs. On this
+> host neither `rt` nor the default repos had it:
+>
+> ```
+> $ sudo dnf install -y --enablerepo=rt rt-tests
+> Error: Unable to find a match: rt-tests
+> ```
+>
+> Find out where it lives before working around it — Rocky moves realtime content between the `rt` and
+> `nfv` repos across point releases:
+>
+> ```bash
+> dnf repolist --all | grep -iE 'rt|nfv|realtime'
+> dnf provides '*/cyclictest'
+> ```
+>
+> If it is genuinely absent, build it from upstream — it is small and self-contained:
+>
+> ```bash
+> sudo dnf install -y numactl-devel
+> git clone https://git.kernel.org/pub/scm/utils/rt-tests/rt-tests.git
+> cd rt-tests && make && sudo make install prefix=/usr/local
+> ```
+>
+> `numactl-devel` is the dependency worth naming: without it `cyclictest` still builds, but loses the CPU
+> affinity support that `-a` needs for the tuned measurement in §8 — so it fails at the point where you
+> care, not at build time.
+>
+> None of this blocks §3 or §4. `cyclictest` is a measurement tool, not a build dependency.
 
 `kernel-rt-devel` is the RT equivalent of the `kernel-devel` from `INSTALL.md` step 1, and §4 cannot
 proceed without it.
