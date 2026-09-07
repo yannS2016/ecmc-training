@@ -34,7 +34,8 @@ ETHERLAB=/opt/etherlab
 
 # --- Source dependencies ----------------------------------------------------
 # Where build-deps.sh keeps libraries built from source (ruckig today).
-# Site convention: one directory per package.
+# Site convention: $DEPS_DIR/<package>/<version>, so several versions coexist
+# and each consumer pins the one it wants.
 DEPS_DIR=/cds/group/pcds/pkg_mgr
 
 # --- Course workspace -------------------------------------------------------

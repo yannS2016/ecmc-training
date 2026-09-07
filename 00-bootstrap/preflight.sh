@@ -200,17 +200,26 @@ else
   why  "then set ECMCCOMP_SRC in site.conf."
 fi
 
-# ruckig: jerk-limited trajectories, built out-of-tree with cmake
-if [[ -d "$deps/ruckig" ]]; then
-  if ls "$deps"/ruckig/build/libruckig.* >/dev/null 2>&1; then
-    pass "ruckig at $deps/ruckig"
+# ruckig: jerk-limited trajectories, built out-of-tree with cmake.
+# Lives at $DEPS_DIR/ruckig/<version>, with the version pinned in deps.conf, so
+# resolve the path rather than assuming it.
+# shellcheck disable=SC1091
+DEPS_DIR="$deps" source "$here/deps-lib.sh"
+ruckig_dir="$(dep_dir ruckig)"
+
+if [[ -z "$ruckig_dir" ]]; then
+  fail "ruckig is not declared in 00-bootstrap/deps.conf"
+elif [[ -d "$ruckig_dir" ]]; then
+  if ls "$ruckig_dir"/build/libruckig.* >/dev/null 2>&1; then
+    pass "ruckig $(dep_version ruckig) at $ruckig_dir"
   else
-    fail "ruckig present but libruckig not built in $deps/ruckig/build"
-    why  "cd $deps/ruckig && cmake -B build && cmake --build build"
+    fail "ruckig present but libruckig not built in $ruckig_dir/build"
+    why  "./00-bootstrap/build-deps.sh ruckig"
   fi
 else
-  fail "ruckig not found at $deps/ruckig"
+  fail "ruckig $(dep_version ruckig) not found at $ruckig_dir"
   why  "ecmc links it for jerk-limited (S-curve) trajectory generation."
+  why  "./00-bootstrap/build-deps.sh ruckig"
 fi
 
 # --- EtherCAT ---------------------------------------------------------------

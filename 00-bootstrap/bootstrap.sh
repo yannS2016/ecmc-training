@@ -33,6 +33,16 @@ source "$repo/site.conf"
 : "${ECMCCFG_SRC:?ECMCCFG_SRC must be set in site.conf}"
 ETHERLAB="${ETHERLAB:-/opt/etherlab}"
 DEPS_DIR="${DEPS_DIR:-/cds/group/pcds/pkg_mgr}"
+
+# Source dependencies live at $DEPS_DIR/<package>/<version>, so the version
+# comes from deps.conf rather than being hardcoded here.
+# shellcheck disable=SC1091
+source "$here/deps-lib.sh"
+RUCKIG_DIR="$(dep_dir ruckig)"
+if [[ -z "$RUCKIG_DIR" ]]; then
+  echo "ERROR: ruckig is not declared in 00-bootstrap/deps.conf" >&2
+  exit 1
+fi
 STAGE="${ECMCCFG_STAGE:-$repo/stage/ecmccfg}"
 
 if [[ -z "${EPICS_HOST_ARCH:-}" ]]; then
@@ -52,6 +62,7 @@ echo "    EPICS_BASE      : $EPICS_BASE"
 echo "    EPICS_MODULES   : $EPICS_MODULES"
 echo "    EPICS_HOST_ARCH : $EPICS_HOST_ARCH"
 echo "    DEPS_DIR        : $DEPS_DIR"
+echo "    ruckig          : $RUCKIG_DIR"
 echo
 
 # ---------------------------------------------------------------------------
@@ -70,7 +81,7 @@ SUPPORT    = $EPICS_MODULES
 
 ASYN       = $EPICS_MODULES/asyn
 MOTOR      = $EPICS_MODULES/motor
-RUCKIG     = $DEPS_DIR/ruckig
+RUCKIG     = $RUCKIG_DIR
 
 # ECMC points at the built module (for libecmc and its dbd)
 ECMC       = $EPICS_MODULES/ecmc
