@@ -417,7 +417,7 @@ something. Read the **Max**, never the Avg — RT is a statement about the worst
 |---|---|
 | < 50 µs | good; 1 kHz motion is comfortable |
 | 50–150 µs | usable at 1 kHz; fix firmware and isolation before going faster |
-| > 200 µs | something is wrong — revisit §5 and §6 before blaming the kernel |
+| > 200 µs | almost certainly un-isolated cores — do §5 before anything else |
 | clean body, rare huge outlier | not the kernel — measure `MSR_SMI_COUNT` before assuming SMI |
 
 Run both **under realistic load** — `stress-ng`, or simply the IOC plus a live bus. An idle machine
@@ -563,6 +563,31 @@ context:
 grep . /sys/class/thermal/thermal_zone*/polling_delay
 grep . /sys/class/thermal/thermal_zone*/type
 ```
+
+
+#### The result on this host
+
+Isolation alone, no firmware changes:
+
+| | Untuned | Isolated (`isolated_cores=2-3`) |
+|---|---|---|
+| Max | 298–344 µs | **5 µs** |
+| Outliers ≥ 40 µs | 9–16 per 300 s | **0** |
+| Samples > 2 µs | 1,311–3,433 | 783 |
+| Body at 2 µs | 99.2–99.6% | 99.74% |
+
+A 60× reduction in worst case, and the entire far population gone. On a 2015 i5-6500, with no BIOS
+changes at all.
+
+**The elimination sequence above pointed at firmware, and firmware was not the answer.** Periodicity and
+clustering are real signals, and here they were misleading: kernel housekeeping on a shared core produces
+a periodic, clustered tail that looks exactly like SMI. The six negative results were not wasted — they
+are what make this one attributable — but the inference drawn from them was wrong. Isolate first; it is
+cheap, it is needed anyway, and it removes an entire class of cause in one step.
+
+Note `nohz_full` was **not** set by this profile — `cat /sys/devices/system/cpu/nohz_full` returned
+`(null)` — so the scheduler tick still fires on the isolated cores. 5 µs was reached without it. At a 1 kHz
+cycle that is 0.5% of the budget, so there is little reason to chase the remainder.
 
 ### Recording the comparison
 
