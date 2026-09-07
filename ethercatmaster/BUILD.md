@@ -305,9 +305,9 @@ Kernel: `5.14.0-687.10.1.el9_8.0.1.x86_64` → Rocky/RHEL **9.8**, `linuxversion
   access.
 - `eno1` currently negotiates 100 Mbit/s. That is not a fault: **EtherCAT is 100BASE-TX full duplex.**
   1 Gbit capability is unused.
-- Rocky 9.8 ships SELinux enforcing and a non-realtime kernel. Neither blocks the build. Cycle jitter
-  without `PREEMPT_RT` is a training-acceptable limitation, already flagged by the realtime check in
-  [`preflight.sh`](../00-bootstrap/preflight.sh).
+- Rocky 9.8 ships SELinux enforcing and a **non-realtime** kernel. Neither blocks the build. Cycle jitter
+  without `PREEMPT_RT` is acceptable through phase 02 and is not acceptable for motion — see
+  [`REALTIME.md`](REALTIME.md), and note that switching kernels means rebuilding these modules.
 
 ---
 

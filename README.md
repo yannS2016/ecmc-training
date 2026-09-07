@@ -33,6 +33,10 @@ without it, and it is the one prerequisite that touches the kernel:
 [ethercatmaster/INSTALL.md](ethercatmaster/INSTALL.md)
 (the commands).
 
+For motion control specifically, add
+[ethercatmaster/REALTIME.md](ethercatmaster/REALTIME.md) — a stock kernel is fine through phase 02, but
+coordinated motion needs a bounded worst-case cycle, not just an average one.
+
 ```bash
 cp site.conf.example site.conf     # edit to match this host — this is the only file you edit
 ./00-bootstrap/preflight.sh        # must exit 0 before continuing
@@ -79,6 +83,7 @@ site.conf.example      copy to site.conf and edit — the only machine-specific 
 ethercatmaster/
   BUILD.md             why the EtherCAT master build is kernel-coupled
   INSTALL.md           installing it, command by command
+  REALTIME.md          PREEMPT_RT kernel, CPU isolation and latency measurement
 00-bootstrap/
   MODULES.md           what each EPICS module is, why ecmc needs it, how it is configured
   preflight.sh         verify the host can build and run ecmc

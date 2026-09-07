@@ -659,6 +659,7 @@ being clean — both checked in §2.
 ## Reference
 
 - `BUILD.md` — compatibility rules and requirements, in depth
+- `REALTIME.md` — PREEMPT_RT kernel and latency tuning, once motion control is the goal
 - `config/` — the site configuration, version controlled, applied by `apply-config.sh`
 - `../00-bootstrap/VERIFY.md` — what a working phase-00 training IOC looks like
 - Upstream handbook: <https://gitlab.com/etherlab.org/ethercat/-/jobs/artifacts/stable-1.6/raw/pdf/ethercat_doc.pdf?job=pdf>

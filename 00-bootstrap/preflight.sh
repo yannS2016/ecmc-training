@@ -247,7 +247,8 @@ if [[ -f /sys/kernel/realtime ]] || [[ "$kern" == *rt* ]]; then
 else
   warn "no PREEMPT_RT kernel detected ($kern)"
   why  "ecmc will run, but cycle jitter will be visible at 1 kHz."
-  why  "Acceptable for training; not for a production motion system."
+  why  "Acceptable for training and for phases 00-02; not for motion."
+  why  "Install one: ethercatmaster/REALTIME.md"
 fi
 
 # --- python (optional: YAML axis/PLC configuration) -------------------------
