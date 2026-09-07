@@ -292,6 +292,22 @@ sudo depmod -a
 > `modules_install` leaves `/opt/etherlab` empty — no library, no headers, no `ethercat` CLI — and
 > `modules.dep` half-written. If you did interrupt it, just run the two commands again.
 
+### `Skipping BTF generation` is also expected
+
+At the end of `make modules`:
+
+```
+BTF [M] /home/ysdev/ethercat/master/ec_master.ko
+Skipping BTF generation for .../ec_master.ko due to unavailability of vmlinux
+```
+
+`kernel-devel` ships headers and build scaffolding but not `vmlinux`, so kbuild cannot emit BPF type
+information for the module. Nothing in EtherCAT or ecmc uses BTF. The module loads and runs identically.
+
+Between this and `sign-file` below, a completely successful build prints two blocks of output that read
+like failures. Neither is. The question that settles it is whether `make` itself returned non-zero —
+check `echo $?`, rather than scanning the scrollback for alarming words.
+
 ### The `sign-file` errors during install are expected
 
 `modules_install` prints this once per module, and it is not a failure:
@@ -614,6 +630,7 @@ cd "$EC_SRC" && make clean
 | `Invalid module format` / `dmesg: version magic ... should be ...` | module built against a different kernel | rebuild against the running kernel (§12) |
 | module load refused, `Key was rejected by service` | Secure Boot on, module unsigned | enrol a MOK, or disable Secure Boot knowing the cost |
 | `sign-file: certs/signing_key.pem: No such file` during `modules_install` | `CONFIG_MODULE_SIG_ALL=y`, no private key | not a failure — see §4; harmless with Secure Boot off |
+| `Skipping BTF generation ... unavailability of vmlinux` | `kernel-devel` ships no `vmlinux` | not a failure — see §4; nothing here uses BTF |
 | `/opt/etherlab` empty after a successful build | `modules_install install` interrupted before `install` ran | re-run both targets, let `depmod` finish |
 | `ethercat: command not found` | `/opt/etherlab/bin` not on `PATH` | step 9 `profile.d` line, then log in again |
 | `libethercat.so.1: cannot open shared object file` | missed step 5 | `ldconfig` entry |
