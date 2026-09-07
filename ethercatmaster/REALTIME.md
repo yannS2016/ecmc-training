@@ -387,14 +387,28 @@ and you end up changing three things and guessing.
 Nothing is isolated yet, so do not pin:
 
 ```bash
-sudo cyclictest -m -p 80 -t1 -n -i 1000 -D 10m -h 400 -q | tee ~/cyclictest-rt-untuned.txt
+sudo cyclictest -m -p 80 -t1 -i 1000 -D 10m -h 400 -q | tee ~/cyclictest-rt-untuned.txt
 ```
 
 ### Then: tuned, after §5 and §6
 
 ```bash
-sudo cyclictest -m -p 80 -t1 -n -a 2 -i 1000 -D 10m -h 400 -q | tee ~/cyclictest-rt-tuned.txt
+sudo cyclictest -m -p 80 -t1 -a 2 -i 1000 -D 10m -h 400 -q | tee ~/cyclictest-rt-tuned.txt
 ```
+
+> **`-n` does not exist in this build, and `-N` is not a substitute.** Many guides pass a lowercase `-n`;
+> `realtime-tests 2.9` rejects it:
+>
+> ```
+> cyclictest: invalid option -- 'n'
+> ```
+>
+> Drop it. Do **not** reach for `-N` instead — that switches the output units to nanoseconds
+> (`-N, --nsecs: print results in ns instead of us`), which changes how you read every number in the
+> table below. Harmless if deliberate, confusing if it was a typo for `-n`.
+>
+> `cyclictest --help` is authoritative for your build; the option set has drifted and most material online
+> predates the current one.
 
 `-a 2` pins to isolated core 2, `-i 1000` samples at your 1 kHz cycle, `-D 10m` runs long enough to catch
 something. Read the **Max**, never the Avg — RT is a statement about the worst case:
