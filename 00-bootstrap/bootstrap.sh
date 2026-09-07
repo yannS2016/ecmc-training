@@ -79,14 +79,33 @@ cat > "$app/configure/RELEASE.local" <<EOF
 #
 # EPICS support modules only. External libraries are in CONFIG_SITE.local.
 
+# Module versions come from site.conf. Following the PCDS convention of naming
+# them <MODULE>_MODULE_VERSION so scripts can extract them.
+ASYN_MODULE_VERSION  = ${ASYN_MODULE_VERSION:-}
+MOTOR_MODULE_VERSION = ${MOTOR_MODULE_VERSION:-}
+ECMC_MODULE_VERSION  = ${ECMC_MODULE_VERSION:-}
+
 SUPPORT    = $EPICS_MODULES
 
-ASYN       = $EPICS_MODULES/asyn
-MOTOR      = $EPICS_MODULES/motor
+ASYN       = $(module_dir asyn)
+MOTOR      = $(module_dir motor)
 
 # ECMC points at the built module (for libecmc, its dbd, and libexprtkSupport)
-ECMC       = $EPICS_MODULES/ecmc
+ECMC       = $(module_dir ecmc)
 
+# Fail early and by name, rather than leaving CHECK_RELEASE to report a path
+# with no indication of which module it belongs to.
+ifeq (\$(wildcard \$(ASYN)),)
+\$(error ASYN path not found: \$(ASYN))
+endif
+ifeq (\$(wildcard \$(MOTOR)),)
+\$(error MOTOR path not found: \$(MOTOR))
+endif
+ifeq (\$(wildcard \$(ECMC)),)
+\$(error ECMC path not found: \$(ECMC))
+endif
+
+# EPICS_BASE last so it appears last in the DB, DBD, INCLUDE and LIB search paths
 EPICS_BASE = $EPICS_BASE
 EOF
 

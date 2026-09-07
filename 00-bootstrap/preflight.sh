@@ -97,6 +97,8 @@ fi
 hdr "support modules"
 mods="${EPICS_MODULES:-}"
 deps="${DEPS_DIR:-}"
+# shellcheck disable=SC1091
+source "$here/deps-lib.sh"
 
 check_module() {
   local name="$1" path="$2" lib="$3"
@@ -114,9 +116,9 @@ check_module() {
   pass "$name at $path"
 }
 
-check_module asyn  "$mods/asyn"  asyn
-check_module motor "$mods/motor" motor
-check_module ecmc  "$mods/ecmc"  ecmc
+check_module asyn  "$(module_dir asyn)"  asyn
+check_module motor "$(module_dir motor)" motor
+check_module ecmc  "$(module_dir ecmc)"  ecmc
 
 # Report which release each checkout sits on.  Both projects tag their releases
 # as a matched pair -- ecmc "v11.0.8" and ecmccfg "11.0.8" (note: ecmccfg dropped

@@ -33,3 +33,29 @@ dep_dir() {
   [[ -n "$v" ]] || return 1
   printf '%s/%s/%s\n' "$DEPS_DIR" "$name" "$v"
 }
+
+# ---------------------------------------------------------------------------
+# EPICS module paths.
+#
+# Module trees may be versioned -- $EPICS_MODULES/<module>/<version>, the PCDS
+# convention -- or flat. The version comes from <NAME>_MODULE_VERSION in
+# site.conf; empty or unset means flat.
+#
+#     module_dir asyn   ->  $EPICS_MODULES/asyn/R4.42-1.0.0
+#                       or  $EPICS_MODULES/asyn        (if no version set)
+# ---------------------------------------------------------------------------
+module_version() {
+  local name="$1" var
+  var="$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')_MODULE_VERSION"
+  printf '%s' "${!var:-}"
+}
+
+module_dir() {
+  local name="$1" v
+  v="$(module_version "$name")"
+  if [[ -n "$v" ]]; then
+    printf '%s/%s/%s\n' "${EPICS_MODULES:-}" "$name" "$v"
+  else
+    printf '%s/%s\n' "${EPICS_MODULES:-}" "$name"
+  fi
+}

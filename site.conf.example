@@ -47,3 +47,11 @@ DEPS_DIR=/opt/pkg_mgr
 
 # EPICS prefix for the PVs created by the course IOCs.
 IOC_PREFIX=TRAIN
+
+# --- EPICS module versions ---------------------------------------------------
+# Module trees may be versioned: $EPICS_MODULES/<module>/<version>, which is the
+# PCDS convention. Leave a version empty if that module sits flat directly under
+# $EPICS_MODULES instead.
+ASYN_MODULE_VERSION=R4.42-1.0.0
+MOTOR_MODULE_VERSION=R6.10.1-2.6.1
+ECMC_MODULE_VERSION=
