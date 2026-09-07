@@ -569,15 +569,17 @@ grep . /sys/class/thermal/thermal_zone*/type
 
 Isolation alone, no firmware changes:
 
-| | Untuned | Isolated (`isolated_cores=2-3`) |
-|---|---|---|
-| Max | 298–344 µs | **5 µs** |
-| Outliers ≥ 40 µs | 9–16 per 300 s | **0** |
-| Samples > 2 µs | 1,311–3,433 | 783 |
-| Body at 2 µs | 99.2–99.6% | 99.74% |
+| | Untuned | Isolated | Isolated + load |
+|---|---|---|---|
+| Max | 298–344 µs | **5 µs** | **9 µs** |
+| Outliers ≥ 40 µs | 9–16 per 300 s | **0** | **0** |
+| Samples > 2 µs | 1,311–3,433 | 783 | 11,720 |
+| Body at 2 µs | 99.2–99.6% | 99.74% | 96.09% |
 
 A 60× reduction in worst case, and the entire far population gone. On a 2015 i5-6500, with no BIOS
-changes at all.
+changes at all. Under a four-way CPU load it holds at 9 µs -- and note what that load actually did:
+`isolcpus` keeps unpinned tasks off cores 2-3, so all four `stress-ng` workers piled onto cores 0-1. Two
+cores carrying a four-way load while the isolated core stayed under 10 µs.
 
 Measured **with the bus running** — `systemctl is-active ethercat` returning `active` with all 3 slaves
 enumerated, not on an idle machine. Note the shoulder: 783 samples above 2 µs *with* the master running,
@@ -597,21 +599,33 @@ cycle that is 0.5% of the budget, so there is little reason to chase the remaind
 ### Recording the comparison
 
 Where the point of the exercise is to compare a Linux + ecmc motion application against a hardware PLC,
-record the method alongside the number or the comparison is not defensible:
+record the method alongside the number or the comparison is not defensible. Filled in for this host:
 
 | | value |
 |---|---|
-| Kernel | |
-| Tuned / untuned | |
-| Isolated cores | |
-| Load during the run | |
-| `cyclictest` Max / Avg | |
-| ecmc cycle overruns | |
-| PLC figure being compared against, and how *it* was measured | |
+| Hardware | Intel i5-6500, 4 cores, no SMT, 2015 |
+| Kernel | `5.14.0-687.44.1.el9_8.x86_64+rt`, Rocky 9.8 |
+| Tuning | `tuned` `realtime`, `isolated_cores=2-3`, `isolate_managed_irq=Y`. **No BIOS changes.** |
+| Isolated cores | 2-3 (`nohz_full` not set; tick still fires there) |
+| EtherCAT | IgH 1.6.12, `generic` driver, 3 slaves, ~880 frames/s, 0 lost |
+| Load during the run | `stress-ng --cpu 4` — all 4 workers on cores 0-1, since `isolcpus` keeps them off 2-3 |
+| `cyclictest` idle | Max **5 µs**, Avg 2 µs, 300k cycles |
+| `cyclictest` under load | Max **9 µs**, Avg 2 µs, 300k cycles |
+| Untuned, for reference | Max 298–344 µs |
+| ecmc cycle overruns | *(next milestone — `cyclictest` measures the scheduler, not the application)* |
+| PLC figure being compared against, and how *it* was measured | *(fill in — see below)* |
 
 That last row is the one that decides whether the comparison means anything. A PLC vendor's quoted jitter
-is usually measured on dedicated hardware with a specific task class — compare like for like, or the
-number proves nothing either way.
+is usually measured on dedicated hardware with a specific task class, often excluding the application
+layer entirely. Compare like for like, or the number proves nothing in either direction.
+
+Two honest caveats on the figures above, which belong next to them whenever they are quoted:
+
+- **`cyclictest` measures the scheduler waking a thread, not a motion application doing work.** ecmc's own
+  cycle-time statistics include the master, the driver and the PLC logic. Expect them to be worse, and
+  treat them as the real number.
+- **`generic` driver, not native.** Stopping the master halved the sub-20 µs shoulder, which is the cost of
+  routing frames through the kernel network stack (§9). A PLC does not pay it.
 
 `cyclictest` measures the kernel's ability to wake a thread on time. It is necessary, not sufficient:
 
