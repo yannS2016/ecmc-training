@@ -380,52 +380,37 @@ git describe --tags         # expect exactly: 1.6.12
 
 ## 11. Pre-build compatibility check
 
-Run this before `./configure`. It answers every question in this document for your host, and takes a
-second.
+Run [`pre-build.sh`](pre-build.sh) before `./configure`. It answers every question in this document for
+your host, and takes a second.
 
 ```bash
-#!/usr/bin/env bash
-# Where the ethercat checkout lives:
-EC_SRC=${EC_SRC:-$HOME/src/ethercat}
-
-echo "== host =="
-. /etc/os-release && echo "distro       : $PRETTY_NAME"
-echo "kernel       : $(uname -r)"
-LV=$(uname -r | grep -oE '^[0-9]+\.[0-9]+')
-echo "linuxversion : $LV        # what configure will match on"
-
-echo
-echo "== kernel sources =="
-KDIR=/usr/src/kernels/$(uname -r)
-[ -r "$KDIR/Makefile" ] && echo "OK   $KDIR" \
-                        || echo "FAIL kernel-devel-$(uname -r) missing"
-
-echo
-echo "== secure boot =="
-mokutil --sb-state 2>/dev/null || echo "(mokutil absent - likely legacy BIOS, fine)"
-
-echo
-echo "== native driver availability for $LV =="
-echo "   (each test mirrors that driver's own check in configure.ac)"
-D=$EC_SRC/devices
-avail() { if eval "$2"; then echo "  $1 : available  -> --enable-$1 will pass configure"
-          else                echo "  $1 : NOT available for $LV"; fi; }
-avail e1000e "ls $D/e1000e/netdev-$LV-*.c            >/dev/null 2>&1"
-avail igb    "test -f $D/igb/igb_main-$LV-orig.c"
-avail igc    "test -f $D/igc/igc_main-$LV-orig.c"
-avail r8169  "ls $D/r8169-$LV-*.c $D/r8169/r8169_main-$LV-*.c >/dev/null 2>&1"
-echo "  generic : always available"
-
-echo
-echo "== NICs =="
-for i in $(ls /sys/class/net | grep -v lo); do
-  drv=$(basename "$(readlink -f /sys/class/net/$i/device/driver 2>/dev/null)" 2>/dev/null)
-  mac=$(cat /sys/class/net/$i/address)
-  ip=$(ip -4 -br addr show dev "$i" | awk '{print $3}')
-  printf '  %-16s driver=%-10s mac=%s  ip=%s\n' "$i" "${drv:-none}" "$mac" "${ip:-<none>}"
-done
-echo "  -> the EtherCAT NIC is the one with NO ip"
+./pre-build.sh                          # auto-detects the ethercat checkout
+./pre-build.sh /path/to/ethercat        # or say where it is
+EC_SRC=/path/to/ethercat ./pre-build.sh
 ```
+
+It uses the same `PASS` / `WARN` / `FAIL` convention as
+[`../00-bootstrap/preflight.sh`](../00-bootstrap/preflight.sh), quotes the section of this document that
+explains each failure, and exits non-zero if anything is a blocker. What it checks:
+
+| Section | Looking for |
+|---|---|
+| host | distro and kernel; warns on RHEL 8, where no native driver exists (§6) |
+| kernel-devel | `/usr/src/kernels/$(uname -r)` **and** that its `kernel.release` matches the running kernel (§2) |
+| toolchain | `gcc`, `make`, `perl`, `autoconf`, `automake`, `libtool`, `pkg-config`, libelf headers |
+| secure boot | whether unsigned modules will be refused (§8) |
+| ethercat checkout | that it exists, is on tag `1.6.12`, and is unmodified (§10) |
+| native drivers | per-driver availability for your kernel, each test mirroring that driver's own rule in `configure.ac` |
+| NICs | driver, MAC and IP per interface; the one with **no** IP is the EtherCAT candidate |
+
+Two behaviours worth knowing, because the naive version of this check gets both wrong:
+
+- **A missing checkout is reported as a missing checkout, not as "driver not available".** Without the
+  tree there is nothing to test, so the driver section is *skipped*. Conflating the two turns a wrong
+  path into what looks like a kernel-compatibility verdict.
+- **`r8169` is tested against both file layouts** — flat `devices/r8169-*.c` up to 4.4, and the
+  `devices/r8169/` subdirectory from 5.10. Testing both globs in a single `ls` reports failure whenever
+  *either* is absent, which is always.
 
 ---
 
