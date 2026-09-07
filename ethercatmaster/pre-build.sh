@@ -166,8 +166,22 @@ if [[ -n "$EC_SRC" && -d "$EC_SRC/devices" ]]; then
       warn "at '$desc', not tag 1.6.12"
       why  "INSTALL.md step 2 pins it: git checkout -b build-1.6.12 1.6.12"
     fi
-    if [[ -n "$(git -C "$EC_SRC" status --porcelain 2>/dev/null)" ]]; then
-      warn "checkout has local modifications -- provenance is not verifiable"
+    # The compatibility patches deliberately modify the checkout, so a dirty
+    # tree is expected -- but only in exactly the files they touch. Anything
+    # else is an undocumented hand edit, which is what this is really looking
+    # for. See patches/README.md.
+    dirty="$(git -C "$EC_SRC" status --porcelain 2>/dev/null | awk '{print $2}' | sort)"
+    expected="$(printf 'master/cdev.c\nmaster/module.c\n')"
+    if [[ -z "$dirty" ]]; then
+      pass "checkout is clean"
+      why  "If the build fails on el9, the patches in patches/ are not applied."
+    elif [[ "$dirty" == "$expected" ]]; then
+      pass "modified: master/cdev.c, master/module.c -- the compatibility patches"
+    else
+      warn "checkout modified beyond the compatibility patches:"
+      while read -r f; do [[ -n "$f" ]] && why "  $f"; done <<< "$dirty"
+      why  "Expected only master/cdev.c and master/module.c. Anything else is an"
+      why  "undocumented local edit -- provenance is not verifiable."
     fi
   else
     warn "not a git checkout -- cannot confirm the version"
@@ -289,7 +303,10 @@ if [[ $n_fail -eq 0 && $n_warn -eq 0 ]]; then
   echo "  All checks passed. Continue with INSTALL.md step 2."
 elif [[ $n_fail -eq 0 ]]; then
   echo "  $n_warn warning(s), no blockers. Continue with INSTALL.md step 2."
-  echo "  Re-read the WARN lines: they usually mean 'generic driver only'."
+  echo "  Read each WARN -- they mean different things:"
+  echo "    driver availability  -> that driver is unavailable; 'generic' still works"
+  echo "    RHEL backport probe  -> apply that patch from patches/ before building"
+  echo "    checkout modified    -> something beyond the patches was edited by hand"
 else
   echo "  $n_fail blocker(s), $n_warn warning(s). Fix the FAIL lines first."
 fi
