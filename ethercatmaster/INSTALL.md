@@ -140,10 +140,34 @@ git describe --tags                # must print exactly: 1.6.12
 
 Do not build from the `stable-1.6` tip. See `BUILD.md` §10.
 
-> The checkout is **never modified** from here on. `./configure` writes only files the master's own
-> `.gitignore` covers, and `/etc/ethercat.conf` is installed to `/etc` rather than edited in the tree. That
-> is why the site settings live in [`config/`](config/) and not as a patch against this clone —
-> `git status` stays empty and you can re-clone at any time. See [`config/README.md`](config/README.md).
+### Apply the compatibility patches
+
+Tag `1.6.12` does **not** build on Rocky/RHEL 9.4+ without one patch. Apply everything in
+[`patches/`](patches/), in order:
+
+```bash
+for p in <training>/ethercatmaster/patches/*.patch; do
+  git apply --check "$p" && git apply "$p" && echo "applied $(basename "$p")"
+done
+git status --short          # now shows the patched files -- expected
+```
+
+Currently one patch:
+
+| Patch | Fixes |
+|---|---|
+| `0001-cdev-vm_flags-const-on-rhel9.patch` | `master/cdev.c:233: error: assignment of read-only member 'vm_flags'` |
+
+That failure is the RHEL backport problem in `BUILD.md` §5, hitting the **master itself** rather than a
+native driver: mainline made `vm_flags` read-only in 6.3, upstream guards on `LINUX_VERSION_CODE >= 6.3`,
+and Red Hat backported the change into a kernel still numbered 5.14. The version test says "older than
+6.3", the kernel disagrees. Each patch file carries its own full rationale in the header.
+
+> **This is the one thing that does modify the checkout.** Site *configuration* never does — that lives in
+> [`config/`](config/) and lands in `/etc` (see [`config/README.md`](config/README.md)). But source
+> *compatibility* with a distro kernel sometimes requires a real patch, and pretending otherwise would just
+> mean an undocumented local edit. Keeping them here, as reviewable files with rationale, means
+> `git status` in the checkout tells you exactly what diverges from upstream and why.
 
 ---
 

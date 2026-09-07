@@ -165,6 +165,41 @@ agree while the code underneath may not. Possible outcomes, in decreasing likeli
 3. It compiles but misbehaves — rarest and worst. Symptoms are frame timeouts or a NIC that never links.
    If you see that, drop to `generic` before debugging anything else.
 
+### This is not hypothetical — it happened here, and not where expected
+
+On Rocky 9.8 (`5.14.0-687.10.1.el9_8`), `make modules` fails in the **master itself**, before any native
+driver is even reached:
+
+```
+master/cdev.c:233:19: error: assignment of read-only member 'vm_flags'
+  233 |     vma->vm_flags |= VM_DONTDUMP;
+```
+
+Mainline Linux 6.3 made `vm_area_struct.vm_flags` read-only and added `vm_flags_set()`. Upstream handles
+that — but guards it on the version number alone:
+
+```c
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+    vm_flags_set(vma, VM_DONTDUMP);
+#else
+    vma->vm_flags |= VM_DONTDUMP;      /* <- el9 compiles this, and fails */
+#endif
+```
+
+Red Hat backported the const change while keeping the version frozen at 5.14 for kABI stability. The
+version test says "older than 6.3"; the kernel says otherwise.
+
+Two things worth taking from this:
+
+- **The risk is not confined to native drivers.** It applies to any upstream code guarded by
+  `LINUX_VERSION_CODE`, the master core included. Choosing `generic` does not avoid it.
+- **Upstream already knows this pattern** — `devices/generic.c:265` guards on `SUSE_VERSION` alongside the
+  version test for exactly this reason. It simply has no RHEL equivalent anywhere in the tree.
+
+The fix is carried as [`patches/0001-cdev-vm_flags-const-on-rhel9.patch`](patches/) and applied in
+`INSTALL.md` step 2. See [`patches/README.md`](patches/README.md) for why source-compatibility patches are
+tracked while site configuration is not.
+
 If you want to measure the drift before building, get the kernel source RPM and diff against the reference
 copy:
 
