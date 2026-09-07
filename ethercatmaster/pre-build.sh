@@ -167,21 +167,19 @@ if [[ -n "$EC_SRC" && -d "$EC_SRC/devices" ]]; then
       why  "INSTALL.md step 2 pins it: git checkout -b build-1.6.12 1.6.12"
     fi
     # The compatibility patches deliberately modify the checkout, so a dirty
-    # tree is expected -- but only in exactly the files they touch. Anything
-    # else is an undocumented hand edit, which is what this is really looking
-    # for. See patches/README.md.
-    dirty="$(git -C "$EC_SRC" status --porcelain 2>/dev/null | awk '{print $2}' | sort)"
-    expected="$(printf 'master/cdev.c\nmaster/module.c\n')"
-    if [[ -z "$dirty" ]]; then
-      pass "checkout is clean"
-      why  "If the build fails on el9, the patches in patches/ are not applied."
-    elif [[ "$dirty" == "$expected" ]]; then
-      pass "modified: master/cdev.c, master/module.c -- the compatibility patches"
+    # tree is expected. Whether each patch is APPLIED is answered properly by
+    # the backport probes below, against the kernel that actually matters; all
+    # this looks for is edits nobody accounted for. See patches/README.md.
+    unexpected="$(git -C "$EC_SRC" status --porcelain 2>/dev/null \
+                  | awk '{print $NF}' \
+                  | grep -vxE 'master/cdev\.c|master/module\.c' || true)"
+    if [[ -n "$unexpected" ]]; then
+      warn "checkout modified outside the compatibility patches:"
+      while read -r f; do [[ -n "$f" ]] && why "  $f"; done <<< "$unexpected"
+      why  "Only master/cdev.c and master/module.c are accounted for. Anything"
+      why  "else is an undocumented local edit."
     else
-      warn "checkout modified beyond the compatibility patches:"
-      while read -r f; do [[ -n "$f" ]] && why "  $f"; done <<< "$dirty"
-      why  "Expected only master/cdev.c and master/module.c. Anything else is an"
-      why  "undocumented local edit -- provenance is not verifiable."
+      pass "no unaccounted-for local edits"
     fi
   else
     warn "not a git checkout -- cannot confirm the version"
@@ -234,30 +232,62 @@ fi
 # numbered 5.14 (BUILD.md section 5). Both are visible in the headers before
 # anything is compiled, so look.
 # ---------------------------------------------------------------------------
-hdr "RHEL backport probes -- are the patches needed here?"
+#
+# Two independent questions, and answering only the first is what let a
+# reverted patch reach `make`:
+#
+#   needed?   read the KERNEL headers -- has Red Hat backported the newer API?
+#   applied?  read the CHECKOUT -- does the guard carry a RHEL_RELEASE_CODE test?
+#
+# needed && !applied is a hard blocker: the build WILL fail, and knowing that
+# now costs a second instead of a full compile.
+#
+probe() {   # probe <n> <needed 0|1> <source file> <symptom>
+  local n="$1" needed="$2" src="$3" symptom="$4" applied=0
+  if [[ $have_src -eq 1 && -r "$EC_SRC/$src" ]]; then
+    grep -q 'RHEL_RELEASE_CODE' "$EC_SRC/$src" && applied=1
+  else
+    applied=-1
+  fi
+
+  if [[ $needed -eq 1 && $applied -eq 1 ]]; then
+    pass "patch $n needed and applied ($src)"
+  elif [[ $needed -eq 1 && $applied -eq 0 ]]; then
+    fail "patch $n IS REQUIRED but NOT applied -- $src"
+    why  "$symptom"
+    why  "Apply it before building:"
+    why  "  cd \$EC_SRC && git apply <training>/ethercatmaster/patches/$n-*.patch"
+  elif [[ $needed -eq 1 ]]; then
+    warn "patch $n is required by this kernel; no checkout to verify it against"
+  elif [[ $applied -eq 1 ]]; then
+    warn "patch $n applied but this kernel does not need it ($src)"
+    why  "Harmless -- the added guard simply never fires. Worth knowing if you"
+    why  "are moving this checkout between kernels."
+  else
+    pass "patch $n not needed on this kernel"
+  fi
+}
+
+hdr "RHEL backport probes -- needed here, and actually applied?"
 if [[ -r "$KDIR/Makefile" ]]; then
   mm="$KDIR/include/linux/mm.h"
   if [[ ! -r "$mm" ]]; then
     skip "cannot read $mm -- apply patch 0001 and let the compiler decide"
-  elif grep -q 'vm_flags_set' "$mm"; then
-    warn "vm_flags_set() present -- patch 0001 IS required"
-    why  "master/cdev.c:233 would otherwise assign to a const vm_flags."
   else
-    pass "no vm_flags_set() -- patch 0001 not needed on this kernel"
+    grep -q 'vm_flags_set' "$mm" && n1=1 || n1=0
+    probe 0001 "$n1" master/cdev.c \
+      "master/cdev.c:233 assigns to a const vm_flags on this kernel."
   fi
 
   cls="$KDIR/include/linux/device/class.h"
   [[ -r "$cls" ]] || cls="$KDIR/include/linux/device.h"
   if [[ ! -r "$cls" ]]; then
     skip "no class_create() declaration found -- let the compiler decide"
-  elif grep -qE 'class_create\(const char \*' "$cls"; then
-    warn "class_create() takes one argument -- patch 0002 IS required"
-    why  "master/module.c:115 would otherwise pass THIS_MODULE as the name."
   else
-    pass "class_create() takes the module owner -- patch 0002 not needed"
+    grep -qE 'class_create\(const char \*' "$cls" && n2=1 || n2=0
+    probe 0002 "$n2" master/module.c \
+      "master/module.c:115 passes THIS_MODULE where a name is expected."
   fi
-  why  "Applying a patch that is not needed fails loudly at compile time, never"
-  why  "silently at runtime. When unsure, apply both and read the errors."
 else
   skip "skipped -- no kernel build tree to inspect"
 fi
@@ -305,7 +335,7 @@ elif [[ $n_fail -eq 0 ]]; then
   echo "  $n_warn warning(s), no blockers. Continue with INSTALL.md step 2."
   echo "  Read each WARN -- they mean different things:"
   echo "    driver availability  -> that driver is unavailable; 'generic' still works"
-  echo "    RHEL backport probe  -> apply that patch from patches/ before building"
+  echo "    RHEL backport probe  -> a required patch is missing; apply it before building"
   echo "    checkout modified    -> something beyond the patches was edited by hand"
 else
   echo "  $n_fail blocker(s), $n_warn warning(s). Fix the FAIL lines first."
