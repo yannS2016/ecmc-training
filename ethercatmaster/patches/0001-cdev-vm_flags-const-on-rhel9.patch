@@ -1,0 +1,61 @@
+Subject: [PATCH] cdev: use vm_flags_set() on RHEL 9 kernels that backported const vm_flags
+
+Building the master on Rocky/RHEL 9.4+ fails with:
+
+    master/cdev.c:233:19: error: assignment of read-only member 'vm_flags'
+      233 |     vma->vm_flags |= VM_DONTDUMP;
+
+Mainline Linux 6.3 made vm_area_struct.vm_flags read-only and added the
+vm_flags_set()/vm_flags_clear() helpers.  Upstream cdev.c already handles
+that, but guards it purely on LINUX_VERSION_CODE:
+
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+
+Red Hat backported the change into their 5.14 kernel while keeping the
+version number frozen for kABI stability.  So on el9 the version test says
+"older than 6.3" and selects the direct assignment, while the kernel it is
+compiling against has already made the member const.  The version numbers
+agree; the code does not.
+
+Extend the guard with a RHEL_RELEASE_CODE test.  This mirrors how upstream
+already handles the identical situation for SUSE in devices/generic.c:265:
+
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0) \
+        || (SUSE_VERSION == 15 && SUSE_PATCHLEVEL >= 5)
+
+RHEL_RELEASE_CODE and RHEL_RELEASE_VERSION() come from <linux/version.h> on
+RHEL and its derivatives, and are simply absent elsewhere -- hence the
+defined() guard, which keeps the expression valid on non-RHEL kernels.
+
+The 9.4 threshold is the point from which this has been observed to be
+required; verify on the target with:
+
+    grep -E 'RHEL_MAJOR|RHEL_MINOR|RHEL_RELEASE_CODE' \
+         /usr/src/kernels/$(uname -r)/include/linux/version.h
+    grep -c 'vm_flags_set' /usr/src/kernels/$(uname -r)/include/linux/mm.h
+
+A non-zero second count means the kernel has the helpers and this patch is
+needed.  Adjust the minor version if you meet an older el9 that disagrees.
+
+Applies to: IgH EtherCAT master, tag 1.6.12
+Verified on: Rocky 9.8, kernel 5.14.0-687.10.1.el9_8.0.1.x86_64
+Not fixed upstream as of stable-1.6 (650888c5); upstream carries no RHEL
+guards anywhere in the tree.
+---
+ master/cdev.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/master/cdev.c b/master/cdev.c
+--- a/master/cdev.c
++++ b/master/cdev.c
+@@ -227,7 +227,9 @@
+     EC_MASTER_DBG(priv->cdev->master, 1, "mmap()\n");
+
+     vma->vm_ops = &eccdev_vm_ops;
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0) \
++    || (defined(RHEL_RELEASE_CODE) \
++        && RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(9, 4))
+     vm_flags_set(vma, VM_DONTDUMP);
+ #else
+     vma->vm_flags |= VM_DONTDUMP; /* Pages will not be swapped out */

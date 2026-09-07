@@ -24,3 +24,5 @@ stage/
 
 # generated delivery patch (the repo itself is the source of truth)
 *.patch
+# ...but compatibility patches for the EtherCAT master ARE tracked:
+!ethercatmaster/patches/*.patch
