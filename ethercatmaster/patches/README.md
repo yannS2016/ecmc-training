@@ -23,6 +23,7 @@ something not accounted for here, someone edited the tree by hand.
 | File | Fixes |
 |---|---|
 | `0001-cdev-vm_flags-const-on-rhel9.patch` | `master/cdev.c:233: error: assignment of read-only member 'vm_flags'` on Rocky/RHEL 9.4+ |
+| `0002-module-class_create-arity-on-rhel9.patch` | `master/module.c:115: error: too many arguments to function 'class_create'` on Rocky/RHEL 9.6+ |
 
 Each file's header carries the full diagnosis: the error, the mainline commit
 responsible, why the upstream version guard misses it, and how the fix mirrors
@@ -42,7 +43,7 @@ half-applying.
 ## Reverting
 
 ```bash
-git apply -R patches/0001-cdev-vm_flags-const-on-rhel9.patch
+for p in $(ls -r patches/*.patch); do git apply -R "$p"; done
 # or, to discard every local change:
 git checkout -- .
 ```
@@ -52,10 +53,10 @@ git checkout -- .
 Check before every version bump:
 
 ```bash
-git -C <ethercat> log --oneline 1.6.12..origin/stable-1.6 -- master/cdev.c
+git -C <ethercat> log --oneline 1.6.12..origin/stable-1.6 -- master/cdev.c master/module.c
 ```
 
 If upstream has fixed it, delete the patch here rather than carrying a
 conflicting local change forward. As of `650888c5` (stable-1.6, seven commits
-past 1.6.12) `cdev.c` is untouched, and upstream has no RHEL guards anywhere in
+past 1.6.12) both files are untouched, and upstream has no RHEL guards anywhere in
 the tree — so this is unlikely to be fixed for us soon.

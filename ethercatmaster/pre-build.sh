@@ -213,6 +213,42 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# RHEL backport probes
+#
+# The two known build failures on el9 are LINUX_VERSION_CODE guards that pick
+# the wrong branch because Red Hat backported a newer API into a kernel still
+# numbered 5.14 (BUILD.md section 5). Both are visible in the headers before
+# anything is compiled, so look.
+# ---------------------------------------------------------------------------
+hdr "RHEL backport probes -- are the patches needed here?"
+if [[ -r "$KDIR/Makefile" ]]; then
+  mm="$KDIR/include/linux/mm.h"
+  if [[ ! -r "$mm" ]]; then
+    skip "cannot read $mm -- apply patch 0001 and let the compiler decide"
+  elif grep -q 'vm_flags_set' "$mm"; then
+    warn "vm_flags_set() present -- patch 0001 IS required"
+    why  "master/cdev.c:233 would otherwise assign to a const vm_flags."
+  else
+    pass "no vm_flags_set() -- patch 0001 not needed on this kernel"
+  fi
+
+  cls="$KDIR/include/linux/device/class.h"
+  [[ -r "$cls" ]] || cls="$KDIR/include/linux/device.h"
+  if [[ ! -r "$cls" ]]; then
+    skip "no class_create() declaration found -- let the compiler decide"
+  elif grep -qE 'class_create\(const char \*' "$cls"; then
+    warn "class_create() takes one argument -- patch 0002 IS required"
+    why  "master/module.c:115 would otherwise pass THIS_MODULE as the name."
+  else
+    pass "class_create() takes the module owner -- patch 0002 not needed"
+  fi
+  why  "Applying a patch that is not needed fails loudly at compile time, never"
+  why  "silently at runtime. When unsure, apply both and read the errors."
+else
+  skip "skipped -- no kernel build tree to inspect"
+fi
+
+# ---------------------------------------------------------------------------
 # network interfaces
 # ---------------------------------------------------------------------------
 hdr "network interfaces"

@@ -142,7 +142,7 @@ Do not build from the `stable-1.6` tip. See `BUILD.md` §10.
 
 ### Apply the compatibility patches
 
-Tag `1.6.12` does **not** build on Rocky/RHEL 9.4+ without one patch. Apply everything in
+Tag `1.6.12` does **not** build on Rocky/RHEL 9 without two patches. Apply everything in
 [`patches/`](patches/), in order:
 
 ```bash
@@ -152,16 +152,20 @@ done
 git status --short          # now shows the patched files -- expected
 ```
 
-Currently one patch:
+Currently two patches, both the same root cause -- a call site guarded on `LINUX_VERSION_CODE`
+alone, against a kernel whose version number understates it:
 
 | Patch | Fixes |
 |---|---|
 | `0001-cdev-vm_flags-const-on-rhel9.patch` | `master/cdev.c:233: error: assignment of read-only member 'vm_flags'` |
+| `0002-module-class_create-arity-on-rhel9.patch` | `master/module.c:115: error: too many arguments to function 'class_create'` |
 
-That failure is the RHEL backport problem in `BUILD.md` §5, hitting the **master itself** rather than a
-native driver: mainline made `vm_flags` read-only in 6.3, upstream guards on `LINUX_VERSION_CODE >= 6.3`,
-and Red Hat backported the change into a kernel still numbered 5.14. The version test says "older than
-6.3", the kernel disagrees. Each patch file carries its own full rationale in the header.
+Both are the RHEL backport problem in `BUILD.md` §5, hitting the **master itself** rather than a native
+driver. Mainline made `vm_flags` read-only in 6.3 and dropped the owner argument from `class_create()` in
+6.4; upstream guards each on `LINUX_VERSION_CODE`; Red Hat backported both into a kernel still numbered
+5.14. The version tests say "older", the kernel disagrees. Each patch file carries its own full rationale
+in the header -- including, for `0002`, how to check which `class_create()` signature *your* el9 minor
+declares, since the 9.6 threshold in that guard is verified only on 9.8.
 
 > **This is the one thing that does modify the checkout.** Site *configuration* never does — that lives in
 > [`config/`](config/) and lands in `/etc` (see [`config/README.md`](config/README.md)). But source

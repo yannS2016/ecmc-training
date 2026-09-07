@@ -1,0 +1,74 @@
+Subject: [PATCH] master: single-argument class_create() on RHEL 9 kernels that backported it
+
+Building the master on Rocky/RHEL 9 fails with:
+
+    master/module.c:115:26: error: passing argument 1 of 'class_create' from
+      incompatible pointer type [-Werror=incompatible-pointer-types]
+      115 |     class = class_create(THIS_MODULE, "EtherCAT");
+    master/module.c:115:13: error: too many arguments to function 'class_create'
+
+Mainline Linux 6.4 (commit 1aaba11da9aa, "driver core: class: remove
+module * from class_create()") dropped the owner argument, leaving
+
+    struct class *class_create(const char *name);
+
+Upstream module.c already handles both forms, but selects between them
+purely on LINUX_VERSION_CODE:
+
+    #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+
+Red Hat backported the new signature into their 5.14 kernel while keeping
+the version number frozen for kABI stability.  The version test therefore
+says "older than 6.4" and picks the two-argument call, against a kernel
+that declares the one-argument form.  This is the same class of failure as
+0001-cdev-vm_flags-const-on-rhel9.patch, and the same fix applies: narrow
+the version test with a RHEL_RELEASE_CODE exclusion.
+
+Upstream carries no RHEL guards anywhere in the tree, though it does carry
+SUSE ones for exactly this kind of backport -- see devices/ccat/netdev.c:914
+and devices/8139too-5.14-ethercat.c:2397.  The idiom is established; only
+the distro is missing.
+
+THRESHOLD -- READ THIS BEFORE TRUSTING 9.6
+
+The 9.6 threshold below is NOT verified across el9 minors.  It is verified
+only on 9.8, where the one-argument form is definitely present.  If you are
+on an el9 older than 9.8, check which form your kernel declares:
+
+    grep -n 'class_create' \
+      /usr/src/kernels/$(uname -r)/include/linux/device/class.h
+
+    class_create(const char *name);                 -> one argument, patch needed
+    class_create(struct module *owner, const char *name);  -> two, lower the
+                                                              threshold or drop
+                                                              this patch
+
+Getting it wrong is loud, not silent: too few or too many arguments is a
+hard compile error, never a runtime surprise.
+
+Note devices/ccat/module.c:75 has the identical construct and would need the
+identical change.  It is left alone deliberately -- ccat is not enabled by
+this site's configure line, and the patch set stays as small as the build
+requires.
+
+Applies to: IgH EtherCAT master, tag 1.6.12
+Verified on: Rocky 9.8, kernel 5.14.0-687.10.1.el9_8.0.1.x86_64
+Not fixed upstream as of stable-1.6 (650888c5).
+---
+ master/module.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/master/module.c b/master/module.c
+--- a/master/module.c
++++ b/master/module.c
+@@ -111,7 +111,9 @@
+         }
+     }
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0) \
++    && !(defined(RHEL_RELEASE_CODE) \
++         && RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(9, 6))
+     class = class_create(THIS_MODULE, "EtherCAT");
+ #else
+     class = class_create("EtherCAT");

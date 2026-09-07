@@ -199,12 +199,18 @@ Two things worth taking from this:
   the `*-5.14-ethercat.c` files carry **zero** `LINUX_VERSION_CODE` guards (§4a: they are verbatim forks),
   so there is nothing to correct with a guard patch. `INSTALL.md` step 3 records the detail and settles on
   `generic`.
+- **And then the master failed a second time, in `module.c`.** After `cdev.c` was patched, the build hit
+  `master/module.c:115: error: too many arguments to function 'class_create'`. Mainline 6.4 dropped the
+  owner argument from `class_create()`; upstream guards on `LINUX_VERSION_CODE < 6.4`; Red Hat backported
+  the new signature. Same shape as `cdev.c`, same fix. **Expect a sequence, not a single failure** -- each
+  patch only reveals the next guard downstream. Fix, rebuild, repeat.
 - **Upstream already knows this pattern** — `devices/generic.c:265` guards on `SUSE_VERSION` alongside the
   version test for exactly this reason. It simply has no RHEL equivalent anywhere in the tree.
 
-The fix is carried as [`patches/0001-cdev-vm_flags-const-on-rhel9.patch`](patches/) and applied in
-`INSTALL.md` step 2. See [`patches/README.md`](patches/README.md) for why source-compatibility patches are
-tracked while site configuration is not.
+The two patchable failures are carried as [`patches/0001-cdev-vm_flags-const-on-rhel9.patch`](patches/) and
+[`patches/0002-module-class_create-arity-on-rhel9.patch`](patches/), applied in `INSTALL.md` step 2. See
+[`patches/README.md`](patches/README.md) for why source-compatibility patches are tracked while site
+configuration is not.
 
 If you want to measure the drift before building, get the kernel source RPM and diff against the reference
 copy:
