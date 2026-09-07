@@ -145,15 +145,24 @@ Do not build from the `stable-1.6` tip. See `BUILD.md` §10.
 
 ### Apply the compatibility patches
 
-Tag `1.6.12` does **not** build on Rocky/RHEL 9 without two patches. Apply everything in
-[`patches/`](patches/), in order:
+Tag `1.6.12` does **not** build on Rocky/RHEL 9 without two patches. The simplest route applies exactly
+the ones your kernel needs, and tells you which those were:
+
+```bash
+<training>/ethercatmaster/pre-build.sh --apply
+git -C "$EC_SRC" status --short     # now shows the patched files -- expected
+```
+
+Or apply them all by hand:
 
 ```bash
 for p in <training>/ethercatmaster/patches/*.patch; do
   git apply --check "$p" && git apply "$p" && echo "applied $(basename "$p")"
 done
-git status --short          # now shows the patched files -- expected
 ```
+
+Applying a patch the kernel does not need is harmless — the added guard simply never fires — so the
+by-hand route costs nothing but tells you less.
 
 Currently two patches, both the same root cause -- a call site guarded on `LINUX_VERSION_CODE`
 alone, against a kernel whose version number understates it:

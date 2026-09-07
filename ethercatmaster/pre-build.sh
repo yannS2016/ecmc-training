@@ -1,21 +1,50 @@
 #!/usr/bin/env bash
 #
-# pre-build.sh -- verify this host can build the IgH EtherCAT master.
+# pre-build.sh -- verify this host can build the IgH EtherCAT master,
+#                 and optionally apply the compatibility patches it needs.
 #
 # Run this BEFORE ./configure. Every check maps to something the build or the
 # runtime genuinely needs, and each failure quotes the BUILD.md section that
 # explains why it matters.
 #
 #   FAIL  blocks the build      -- fix before continuing
-#   WARN  degrades but proceeds -- usually means "generic driver only"
+#   WARN  degrades but proceeds -- read it; see the summary for what each means
 #
 # Exit status: 0 if no FAIL, 1 otherwise.
 #
-#   ./pre-build.sh                          # auto-detect the ethercat checkout
-#   ./pre-build.sh /path/to/ethercat        # or say where it is
+#   ./pre-build.sh                       # check only, change nothing
+#   ./pre-build.sh --apply               # also apply any missing required patch
+#   ./pre-build.sh /path/to/ethercat     # say where the checkout is
+#   ./pre-build.sh --patches /some/dir   # only if this script was copied away
+#                                        # from its own patches/ directory
 #   EC_SRC=/path/to/ethercat ./pre-build.sh
-
+#
+# Without --apply this script is strictly read-only. With it, the only thing it
+# writes is `git apply` of a patch from patches/ into the ethercat checkout,
+# and only when the running kernel actually requires that patch.
+#
 set -uo pipefail
+
+APPLY=0
+ARG_SRC=""
+PATCHES=""
+
+usage() {
+  sed -n "2,25p" "${BASH_SOURCE[0]}" | sed "s/^#//; s/^ //"
+  exit "${1:-0}"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --apply)        APPLY=1; shift ;;
+    --patches)      PATCHES="${2:-}"; shift 2 ;;
+    --patches=*)    PATCHES="${1#*=}"; shift ;;
+    -h|--help)      usage 0 ;;
+    -*)             echo "unknown option: $1" >&2; usage 1 ;;
+    *)              ARG_SRC="$1"; shift ;;
+  esac
+done
+
 
 n_fail=0
 n_warn=0
@@ -27,6 +56,11 @@ why()  { printf '            %s\n' "$1"; }
 hdr()  { printf '\n== %s ==\n' "$1"; }
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# The patch set ships beside this script, so it is found without being told.
+# --patches exists only for the case where this script has been copied away
+# from the repository it belongs to.
+PATCHES="${PATCHES:-$here/patches}"
 
 # ---------------------------------------------------------------------------
 # host
@@ -146,7 +180,7 @@ fi
 # sibling layout this course uses (<parent>/ethercat next to <parent>/training).
 # ---------------------------------------------------------------------------
 hdr "ethercat checkout"
-[[ -n "${1:-}" ]] && EC_SRC="$1"
+[[ -n "$ARG_SRC" ]] && EC_SRC="$ARG_SRC"
 if [[ -z "${EC_SRC:-}" ]]; then
   for c in "$here/../../ethercat" ./ethercat ../ethercat \
            "$HOME/src/ethercat" /usr/local/src/ethercat /opt/src/ethercat; do
@@ -243,11 +277,31 @@ fi
 # now costs a second instead of a full compile.
 #
 probe() {   # probe <n> <needed 0|1> <source file> <symptom>
-  local n="$1" needed="$2" src="$3" symptom="$4" applied=0
+  local n="$1" needed="$2" src="$3" symptom="$4" applied=0 pfile=""
   if [[ $have_src -eq 1 && -r "$EC_SRC/$src" ]]; then
     grep -q 'RHEL_RELEASE_CODE' "$EC_SRC/$src" && applied=1
   else
     applied=-1
+  fi
+
+  # Required but missing. With --apply, fix it here rather than reporting a
+  # problem and letting the operator walk into the compile anyway.
+  if [[ $needed -eq 1 && $applied -eq 0 && $APPLY -eq 1 ]]; then
+    pfile="$(ls "$PATCHES/$n"-*.patch 2>/dev/null | head -1)"
+    if [[ -z "$pfile" ]]; then
+      fail "patch $n required, not applied, and not found in $PATCHES"
+      why  "Pass --patches <dir> if the patch set lives elsewhere."
+      return
+    fi
+    if git -C "$EC_SRC" apply --check "$pfile" 2>/dev/null \
+       && git -C "$EC_SRC" apply "$pfile"; then
+      pass "patch $n applied just now ($(basename "$pfile"))"
+      return
+    fi
+    fail "patch $n required but does not apply cleanly"
+    why  "$(basename "$pfile") conflicts with this checkout."
+    why  "Check the tag: it is written for 1.6.12."
+    return
   fi
 
   if [[ $needed -eq 1 && $applied -eq 1 ]]; then
@@ -255,8 +309,8 @@ probe() {   # probe <n> <needed 0|1> <source file> <symptom>
   elif [[ $needed -eq 1 && $applied -eq 0 ]]; then
     fail "patch $n IS REQUIRED but NOT applied -- $src"
     why  "$symptom"
-    why  "Apply it before building:"
-    why  "  cd \$EC_SRC && git apply <training>/ethercatmaster/patches/$n-*.patch"
+    why  "Fix it: re-run with --apply"
+    why  "    $0 --apply"
   elif [[ $needed -eq 1 ]]; then
     warn "patch $n is required by this kernel; no checkout to verify it against"
   elif [[ $applied -eq 1 ]]; then
@@ -330,15 +384,19 @@ fi
 # ---------------------------------------------------------------------------
 hdr "summary"
 if [[ $n_fail -eq 0 && $n_warn -eq 0 ]]; then
-  echo "  All checks passed. Continue with INSTALL.md step 2."
+  echo "  All checks passed. Continue with INSTALL.md step 3 (configure)."
 elif [[ $n_fail -eq 0 ]]; then
-  echo "  $n_warn warning(s), no blockers. Continue with INSTALL.md step 2."
+  echo "  $n_warn warning(s), no blockers. Continue with INSTALL.md step 3."
   echo "  Read each WARN -- they mean different things:"
   echo "    driver availability  -> that driver is unavailable; 'generic' still works"
-  echo "    RHEL backport probe  -> a required patch is missing; apply it before building"
-  echo "    checkout modified    -> something beyond the patches was edited by hand"
+  echo "    patch applied/unneeded -> harmless; the guard never fires on this kernel"
+  echo "    checkout modified    -> something outside the patches was edited by hand"
 else
   echo "  $n_fail blocker(s), $n_warn warning(s). Fix the FAIL lines first."
+  if [[ $APPLY -eq 0 ]]; then
+    echo "  If they are missing patches, this script can apply them:"
+    echo "      $0 --apply"
+  fi
 fi
 echo
 

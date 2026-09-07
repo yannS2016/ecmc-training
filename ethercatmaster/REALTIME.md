@@ -190,11 +190,12 @@ rejected.
 Hat backports, and their thresholds (RHEL 9.4 and 9.6) are below 9.8, so `master/cdev.c` and
 `master/module.c` fail identically without them.
 
-Run [`pre-build.sh`](pre-build.sh) first. Its RHEL backport probes read the *new* kernel's headers and say
-which patches this kernel actually needs — exactly the open question for a newer point build:
+Run [`pre-build.sh`](pre-build.sh) first. It reads the *new* kernel's headers to see which patches this
+kernel needs, reads the checkout to see which are actually applied, and with `--apply` closes the gap in
+one step:
 
 ```bash
-<training>/ethercatmaster/pre-build.sh
+<training>/ethercatmaster/pre-build.sh --apply
 ```
 
 ```bash

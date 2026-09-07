@@ -441,8 +441,9 @@ Run [`pre-build.sh`](pre-build.sh) before `./configure`. It answers every questi
 your host, and takes a second.
 
 ```bash
-./pre-build.sh                          # auto-detects the ethercat checkout
-./pre-build.sh /path/to/ethercat        # or say where it is
+./pre-build.sh                          # check only, changes nothing
+./pre-build.sh --apply                  # also apply any patch this kernel needs
+./pre-build.sh /path/to/ethercat        # or say where the checkout is
 EC_SRC=/path/to/ethercat ./pre-build.sh
 ```
 
