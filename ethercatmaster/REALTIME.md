@@ -579,6 +579,11 @@ Isolation alone, no firmware changes:
 A 60× reduction in worst case, and the entire far population gone. On a 2015 i5-6500, with no BIOS
 changes at all.
 
+Measured **with the bus running** — `systemctl is-active ethercat` returning `active` with all 3 slaves
+enumerated, not on an idle machine. Note the shoulder: 783 samples above 2 µs *with* the master running,
+against 1,311 with the master stopped and no isolation. `isolate_managed_irq=Y` steered the NIC interrupt
+away from cores 2-3, so the master's ~880 frames/s no longer reach the measured core at all.
+
 **The elimination sequence above pointed at firmware, and firmware was not the answer.** Periodicity and
 clustering are real signals, and here they were misleading: kernel housekeeping on a shared core produces
 a periodic, clustered tail that looks exactly like SMI. The six negative results were not wasted — they
