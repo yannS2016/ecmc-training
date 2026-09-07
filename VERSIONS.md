@@ -66,18 +66,21 @@ git fetch upstream --tags
 git describe --tags        # expect: v11.0.8
 ```
 
-### ecmccfg — needs updating
+### ecmccfg — already on the tag
 
-The checkout is at `1d4759f6` (2024-05-17), roughly the v8.0.0 era and about two
-years behind.
+Local `HEAD` is `ca9ea844`, a detached checkout of `11.0.8`. Nothing to do. To
+confirm:
 
 ```bash
 cd $ECMCCFG_SRC
 git remote add upstream https://github.com/paulscherrerinstitute/ecmccfg.git
 git fetch upstream --tags
-git checkout 11.0.8        # detached HEAD on the tag -- this is intended
 git describe --tags        # expect: 11.0.8
 ```
+
+> **Do not read the version out of `Changelog.adoc`.** Its top entry still says
+> `= v8.0.0` at tag `11.0.8` — upstream stopped maintaining it. `git describe
+> --tags` is the only reliable answer, and it is what `preflight.sh` uses.
 
 Prefer a detached checkout of the tag over merging upstream into the fork's
 `master`. It is unambiguous, and it avoids dragging two years of history through
@@ -102,6 +105,6 @@ constraint only ever applied to a Windows browsing clone.
    `loadCppLogic.cmd`, `loadYamlPlc.cmd`).
 3. Smoke-test the upstream examples the course teaches from before teaching them.
 
-For reference, the stale 2024 `ecmccfg` staged to **810 scripts, 329 templates**
-with no collisions. Expect different numbers at `11.0.8`; changed counts are
-fine, a collision failure is not.
+For reference, the 2024-era `ecmccfg` this course was first drafted against staged
+to **810 scripts, 329 templates** with no collisions. Expect different numbers at
+`11.0.8`; changed counts are fine, a collision failure is not.
