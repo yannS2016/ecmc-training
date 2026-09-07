@@ -66,6 +66,20 @@ tell you if they disagree.
 
 **Version.** ecmc targets EPICS 7. `preflight.sh` warns on 3.14/3.15.
 
+**OS dependencies.** Run `00-bootstrap/install-deps.sh` before building
+anything. It installs the compiler, Perl, readline, libtirpc, cmake and python3,
+then verifies each by exercising it rather than trusting `dnf`. Two Rocky 9
+traps it exists to catch:
+
+- RHEL 8/9 split the Perl core into many small packages, so a minimal install
+  has the interpreter but not `FindBin`, which the base build assumes. The
+  failure (`Can't locate FindBin.pm in @INC`) appears partway through the build
+  and reads like a broken checkout.
+- glibc 2.32 removed SunRPC. `asyn`'s VXI-11 driver is `rpcgen`-generated and
+  needs `libtirpc`, whose headers live under `/usr/include/tirpc/`, not the old
+  `/usr/include/rpc/`. So installing the package is sometimes not enough; the
+  build may also need `-I/usr/include/tirpc`.
+
 **Configuration.** None specific to this course. We only read
 `configure/CONFIG_BASE_VERSION` to report the version, and
 `startup/EpicsHostArch` to determine `EPICS_HOST_ARCH`.

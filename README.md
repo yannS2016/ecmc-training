@@ -39,6 +39,7 @@ For motion control specifically, add
 coordinated motion needs a bounded worst-case cycle, not just an average one.
 
 ```bash
+./00-bootstrap/install-deps.sh     # OS packages for EPICS and the ecmc stack
 cp site.conf.example site.conf     # edit to match this host — this is the only file you edit
 ./00-bootstrap/preflight.sh        # must exit 0 before continuing
 ./00-bootstrap/bootstrap.sh
@@ -87,6 +88,7 @@ ethercatmaster/
   REALTIME.md          PREEMPT_RT kernel, CPU isolation and latency measurement
 00-bootstrap/
   MODULES.md           what each EPICS module is, why ecmc needs it, how it is configured
+  install-deps.sh      OS packages (compiler, perl, readline, libtirpc, cmake, python)
   preflight.sh         verify the host can build and run ecmc
   bootstrap.sh         generate paths, stage ecmccfg, build the IOC
   stage-ecmccfg.sh     flatten ecmccfg into a usable install
