@@ -57,6 +57,20 @@ because you *may* keep sources elsewhere. If you do, `$EPICS_MODULES/ecmc` must
 still be the built tree — `preflight.sh` checks the two independently and will
 tell you if they disagree.
 
+**Two trees, not one.** Source dependencies that are not EPICS modules live
+somewhere else entirely:
+
+| | Variable | Site value | Holds |
+|---|---|---|---|
+| EPICS modules | `EPICS_MODULES` | `/epics/modules/<base-ver>` | asyn, motor, ecmc, ecmccfg, ecmccomp |
+| Source dependencies | `DEPS_DIR` | `/cds/group/pcds/pkg_mgr` | ruckig, one directory per package |
+
+`build-deps.sh` populates the second; `bootstrap.sh` writes the resulting path
+into `RELEASE.local` so the IOC build finds it. Keeping them apart matters
+because the two trees have different rules: an EPICS module is a built source
+tree addressed through `configure/RELEASE`, while a package here is whatever its
+own build system produces.
+
 ---
 
 ## 3. EPICS base
@@ -196,7 +210,7 @@ It reads `00-bootstrap/deps.conf`, checks out the pinned tag, builds, and writes
 the resolved commit to `deps.lock`. The equivalent by hand:
 
 ```bash
-cd $EPICS_MODULES/ruckig
+cd $DEPS_DIR/ruckig
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
 cmake --build build -j$(nproc)
 ```
@@ -215,7 +229,7 @@ Move or delete `$(RUCKIG)/build` and a previously working IOC stops starting. Th
 is upstream's convention, kept for consistency; if you later package ruckig
 properly, update the rpath to match.
 
-`preflight.sh` checks for `$RUCKIG/build/libruckig.*` specifically, not just the
+`preflight.sh` checks for `$DEPS_DIR/ruckig/build/libruckig.*` specifically, not just the
 directory, because the directory existing proves nothing.
 
 ---
@@ -261,7 +275,7 @@ cat > configure/RELEASE.local <<EOF
 EPICS_BASE = $EPICS_BASE
 ASYN      = $EPICS_MODULES/asyn
 MOTOR     = $EPICS_MODULES/motor
-RUCKIG    = $EPICS_MODULES/ruckig
+RUCKIG    = $DEPS_DIR/ruckig
 ETHERLAB  = /opt/etherlab
 EOF
 make -j$(nproc)

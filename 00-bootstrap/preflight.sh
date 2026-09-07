@@ -89,6 +89,7 @@ fi
 # --- support modules --------------------------------------------------------
 hdr "support modules"
 mods="${EPICS_MODULES:-}"
+deps="${DEPS_DIR:-/cds/group/pcds/pkg_mgr}"
 
 check_module() {
   local name="$1" path="$2" lib="$3"
@@ -200,15 +201,15 @@ else
 fi
 
 # ruckig: jerk-limited trajectories, built out-of-tree with cmake
-if [[ -d "$mods/ruckig" ]]; then
-  if ls "$mods"/ruckig/build/libruckig.* >/dev/null 2>&1; then
-    pass "ruckig at $mods/ruckig"
+if [[ -d "$deps/ruckig" ]]; then
+  if ls "$deps"/ruckig/build/libruckig.* >/dev/null 2>&1; then
+    pass "ruckig at $deps/ruckig"
   else
-    fail "ruckig present but libruckig not built in $mods/ruckig/build"
-    why  "cd $mods/ruckig && cmake -B build && cmake --build build"
+    fail "ruckig present but libruckig not built in $deps/ruckig/build"
+    why  "cd $deps/ruckig && cmake -B build && cmake --build build"
   fi
 else
-  fail "ruckig not found at $mods/ruckig"
+  fail "ruckig not found at $deps/ruckig"
   why  "ecmc links it for jerk-limited (S-curve) trajectory generation."
 fi
 

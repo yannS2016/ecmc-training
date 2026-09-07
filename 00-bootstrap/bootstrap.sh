@@ -32,6 +32,7 @@ source "$repo/site.conf"
 : "${ECMC_SRC:?ECMC_SRC must be set in site.conf}"
 : "${ECMCCFG_SRC:?ECMCCFG_SRC must be set in site.conf}"
 ETHERLAB="${ETHERLAB:-/opt/etherlab}"
+DEPS_DIR="${DEPS_DIR:-/cds/group/pcds/pkg_mgr}"
 STAGE="${ECMCCFG_STAGE:-$repo/stage/ecmccfg}"
 
 if [[ -z "${EPICS_HOST_ARCH:-}" ]]; then
@@ -50,6 +51,7 @@ echo "==> bootstrap"
 echo "    EPICS_BASE      : $EPICS_BASE"
 echo "    EPICS_MODULES   : $EPICS_MODULES"
 echo "    EPICS_HOST_ARCH : $EPICS_HOST_ARCH"
+echo "    DEPS_DIR        : $DEPS_DIR"
 echo
 
 # ---------------------------------------------------------------------------
@@ -68,7 +70,7 @@ SUPPORT    = $EPICS_MODULES
 
 ASYN       = $EPICS_MODULES/asyn
 MOTOR      = $EPICS_MODULES/motor
-RUCKIG     = $EPICS_MODULES/ruckig
+RUCKIG     = $DEPS_DIR/ruckig
 
 # ECMC points at the built module (for libecmc and its dbd)
 ECMC       = $EPICS_MODULES/ecmc

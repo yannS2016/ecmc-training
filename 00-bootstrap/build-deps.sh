@@ -49,11 +49,10 @@ if [[ -f "$repo/site.conf" ]]; then
   source "$repo/site.conf"
 fi
 
-# Default to the EPICS module tree so ruckig lands where MODULES.md and the
-# generated RELEASE.local already expect it. Override with DEPS_DIR in site.conf.
-DEPS_DIR="${DEPS_DIR:-${EPICS_MODULES:-}}"
+# Site convention: /cds/group/pcds/pkg_mgr/<package>. Override in site.conf.
+DEPS_DIR="${DEPS_DIR:-/cds/group/pcds/pkg_mgr}"
 if [[ -z "$DEPS_DIR" ]]; then
-  echo "ERROR: set DEPS_DIR or EPICS_MODULES in site.conf" >&2
+  echo "ERROR: DEPS_DIR is empty; set it in site.conf" >&2
   exit 1
 fi
 

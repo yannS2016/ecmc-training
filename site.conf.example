@@ -32,6 +32,11 @@ ECMCCOMP_SRC=/home/epics/src/ecmccomp
 # Etherlab master installation (provides libethercat and the `ethercat` CLI)
 ETHERLAB=/opt/etherlab
 
+# --- Source dependencies ----------------------------------------------------
+# Where build-deps.sh keeps libraries built from source (ruckig today).
+# Site convention: one directory per package.
+DEPS_DIR=/cds/group/pcds/pkg_mgr
+
 # --- Course workspace -------------------------------------------------------
 # Where stage-ecmccfg.sh writes the flattened ecmccfg install.
 # Must be writable. Defaults to <training repo>/stage.

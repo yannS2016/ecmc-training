@@ -14,7 +14,9 @@ ASYN     = $(SUPPORT)/asyn
 MOTOR    = $(SUPPORT)/motor
 ECMC     = $(SUPPORT)/ecmc
 ECMCCFG  = $(SUPPORT)/ecmccfg
-RUCKIG   = $(SUPPORT)/ruckig
+# Source dependencies live outside the EPICS module tree; bootstrap.sh writes
+# the real path into RELEASE.local from DEPS_DIR in site.conf.
+RUCKIG   = /cds/group/pcds/pkg_mgr/ruckig
 
 # exprtkSupport ships inside the ecmc source tree
 EXPRTK   = $(ECMC)/exprtkSupport
