@@ -185,13 +185,23 @@ generation. **Not an EPICS module** — a plain CMake project.
 trapezoidal generator, giving motion that is continuous in acceleration. Phase 03
 compares the two directly.
 
-**Build.**
+**Build.** Use the dependency tool rather than doing it by hand, so the version
+is pinned and recorded:
+
+```bash
+./00-bootstrap/build-deps.sh ruckig
+```
+
+It reads `00-bootstrap/deps.conf`, checks out the pinned tag, builds, and writes
+the resolved commit to `deps.lock`. The equivalent by hand:
 
 ```bash
 cd $EPICS_MODULES/ruckig
-cmake -B build
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
 cmake --build build -j$(nproc)
 ```
+
+`BUILD_SHARED_LIBS=ON` is required: the rpath below only helps a shared library.
 
 **Why the build directory matters.** The application Makefile hard-codes it:
 

@@ -2,6 +2,7 @@
 site.conf
 configure/RELEASE.local
 ecmcPaths.cmd
+00-bootstrap/deps.lock
 **/ecmcPaths.cmd
 **/configure/RELEASE.local
 
