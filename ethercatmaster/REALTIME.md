@@ -423,6 +423,51 @@ something. Read the **Max**, never the Avg — RT is a statement about the worst
 Run both **under realistic load** — `stress-ng`, or simply the IOC plus a live bus. An idle machine
 measures nothing interesting, and an idle measurement is the one that flatters you.
 
+
+### Read the histogram, not just the Max
+
+`Max` alone cannot tell you what to fix. The **shape** can. From this host, untuned, 600,000 cycles:
+
+```
+000002 596189      <- 99.36% of all samples
+000003 003175
+000004 000361
+000005 000106
+...
+000033 000001
+000044 000001
+                   <- ~24 further samples, scattered out to 298 us
+```
+
+Three regions, three different causes:
+
+| Region | This host | Cause | Fix |
+|---|---|---|---|
+| **Body** — one dominant bucket | 2 µs, 99.36% | none; this is the kernel working | — |
+| **Shoulder** — smooth decay | 3–44 µs, 0.6% | scheduler tick, load balancing, IRQs, RCU callbacks | CPU isolation, §5 |
+| **Far outliers** — sparse, orders of magnitude out | ~24 samples to 298 µs | SMI, or P-state transitions | firmware, §6 |
+
+A big `Max` with a clean body and a handful of far outliers is **not** a kernel problem, and tuning the
+kernel harder will not move it. Conversely a fat shoulder with no far outliers is pure scheduling, and
+firmware settings will do nothing for it. Knowing which you have decides where the next hour goes.
+
+Print the tail rather than truncating it — `head -25` hides exactly the samples that matter:
+
+```bash
+sed -n '/^# Histogram$/,/^# Min Latencies/p' ~/cyclictest-rt-untuned.txt \
+  | awk '$1+0 >= 40 && $2+0 > 0 {print}'
+```
+
+To confirm SMI directly, read the firmware's own counter before and after a run:
+
+```bash
+sudo dnf install -y msr-tools
+sudo rdmsr -a 0x34          # MSR_SMI_COUNT, per CPU
+```
+
+If it climbs on an otherwise idle machine, firmware is preempting the kernel and no kernel setting will
+change that. §6 is the only lever.
+
 ### Recording the comparison
 
 Where the point of the exercise is to compare a Linux + ecmc motion application against a hardware PLC,
