@@ -458,11 +458,23 @@ Then the master itself:
 bus; empty output with hardware connected means cabling, power, or the wrong port on the first slave (IN
 vs OUT).
 
-Put `/opt/etherlab/bin` on `PATH` for convenience:
+Put `/opt/etherlab/bin` on `PATH` for convenience — this takes effect at your next login:
 
 ```bash
 echo 'export PATH=/opt/etherlab/bin:$PATH' | sudo tee /etc/profile.d/etherlab.sh
 ```
+
+> **It will not work under `sudo`.** `sudoers` resets `PATH` to its own `secure_path`, which does not
+> include `/opt/etherlab/bin`:
+>
+> ```
+> $ sudo ethercat master
+> sudo: ethercat: command not found
+> ```
+>
+> Use the absolute path — `sudo /opt/etherlab/bin/ethercat master` — or, better, fix the permissions so
+> `sudo` is not needed at all (§8). Needing root to read bus state is a sign the `ethercat` group is not
+> working, not something to route around.
 
 ### Optional: switch to the native `e1000e` driver
 
@@ -594,14 +606,16 @@ cd "$EC_SRC" && make clean
 | module load refused, `Key was rejected by service` | Secure Boot on, module unsigned | enrol a MOK, or disable Secure Boot knowing the cost |
 | `sign-file: certs/signing_key.pem: No such file` during `modules_install` | `CONFIG_MODULE_SIG_ALL=y`, no private key | not a failure — see §4; harmless with Secure Boot off |
 | `/opt/etherlab` empty after a successful build | `modules_install install` interrupted before `install` ran | re-run both targets, let `depmod` finish |
-| `ethercat: command not found` | `/opt/etherlab/bin` not on `PATH` | step 9 `profile.d` line |
+| `ethercat: command not found` | `/opt/etherlab/bin` not on `PATH` | step 9 `profile.d` line, then log in again |
 | `libethercat.so.1: cannot open shared object file` | missed step 5 | `ldconfig` entry |
 | `ERROR: No network cards for EtherCAT specified` | `MASTER0_DEVICE` empty | step 7 |
 | master starts, `Phase: Idle`, 0 slaves | cabling, slave power, or IN/OUT reversed on the first slave | check link LEDs; `ethtool eno1` shows `Link detected: yes` |
 | all frames time out with `generic` | interface not up | `UPDOWN_INTERFACES="eno1"` in step 7 |
 | `rmmod e1000e` fails on native start | NetworkManager holding the interface | step 6 |
 | ecmc build: `ecrt.h: No such file or directory` | the `configure/RELEASE` `ETHERLAB` trap | step 10 |
-| `Permission denied` on `/dev/EtherCAT0` | not in the `ethercat` group yet | log out and in, or `newgrp ethercat` |
+| `Permission denied` on `/dev/EtherCAT0`, node is `root:ethercat` | your shell predates `usermod -aG` | `newgrp ethercat`, or log out and in — check with `id` |
+| `sudo: ethercat: command not found` (works without `sudo`) | `sudoers` `secure_path` excludes `/opt/etherlab/bin` | use the absolute path, or fix §8 so `sudo` is unnecessary |
+| `Permission denied` on `/dev/EtherCAT0`, node is `root:root` | the node was created before the udev rule existed | `udevadm control --reload-rules && systemctl restart ethercat` |
 
 ---
 
