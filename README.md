@@ -50,8 +50,8 @@ where "where things live on this machine" is written down.
 | [01-discovery](01-discovery/) | Map the crate; read upstream examples | crate powered |
 | [02-daq-ioc](02-daq-ioc/) | Temperature DAQ IOC (PT100 / EL3202) | analog input terminal |
 | [03-motion-ioc](03-motion-ioc/) | Motion IOC: encoder, PID, homing, motor record | drive + motor |
-| [04-advanced](04-advanced/) | PLC engine, virtual axes, groups, plugins, `cpp_logic` | partly none |
-| [99-assessment](99-assessment/) | Strengths, limitations, and ecmc vs TwinCAT | none |
+| 04-advanced *(planned)* | PLC engine, virtual axes, groups, plugins, `cpp_logic` | partly none |
+| 99-assessment *(planned)* | Strengths, limitations, and ecmc vs TwinCAT | none |
 
 Phases are independently useful, but 00 gates everything: it proves the IOC
 builds and ecmc starts. Do not skip ahead past a failing
@@ -94,9 +94,15 @@ ethercatmaster/
 02-daq-ioc/
   README.md            PDO vs SDO, PV naming, record-to-EtherCAT binding
   st.cmd               the temperature IOC
-03-motion-ioc/ ... 99-assessment/
+03-motion-ioc/
+  README.md            the five parts of an axis, homing, tuning, .ax vs YAML
+  st.cmd               the motion IOC (AXIS_CFG selects the stage)
+  cfg/01-openloop.ax   stage 1: motion, no protection
+  cfg/02-closedloop.ax stage 2: + PID, following error, soft limits
+  cfg/03-homing.ax     stage 3: + limit switches, homing
+  cfg/axis1.yaml       stage 3 in YAML, for comparison
+04-advanced/, 99-assessment/   planned, not yet written
 appendix-require.md    what `require` is and why we do not use it
-exercises/             per-phase exercises with expected outcomes
 ```
 
 The upstream `ecmc` and `ecmccfg` checkouts are **read-only** to this course.

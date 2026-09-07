@@ -234,6 +234,9 @@ From `lshw -class network` and `uname -r`:
 
 Kernel: `5.14.0-687.10.1.el9_8.0.1.x86_64` → Rocky/RHEL **9.8**, `linuxversion` = `5.14`.
 
+> These values are illustrative. The one place they are actually *used* is
+> [`config/site-ethercat.env`](config/site-ethercat.env) -- change hardware there, not here.
+
 **Conclusions:**
 
 - **`eno1` is the EtherCAT NIC.** Intel I219-LM on `e1000e` is one of the best-supported combinations for

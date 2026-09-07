@@ -20,6 +20,9 @@ Every step is idempotent or has an explicit rollback (§11). Steps 1-9 need `sud
 | IP | none | 192.168.0.4 |
 | **Role** | **EtherCAT** | **management — never touch** |
 
+> The MAC above is repeated in [`config/site-ethercat.env`](config/site-ethercat.env), which is the only
+> copy anything reads. On a hardware change edit that file; this table is documentation.
+
 `eno1` is the EtherCAT NIC: Intel silicon, well supported by EtherLab, and carrying no IP so taking it
 costs nothing. The management NIC uses `r8152`, for which EtherLab ships no driver at all, so it cannot be
 hijacked by a configuration mistake.
@@ -51,8 +54,8 @@ are connected over is on `enp0s20f0u4`.
 > **Stop if `$EC_NIC` has an IP address.** You are about to take that interface away from the network
 > stack. Confirm you are not connected through it.
 
-Optionally run the pre-build check from `BUILD.md` §11 — it prints the driver availability
-verdict for your exact kernel.
+Or just run [`pre-build.sh`](pre-build.sh), which does all of the above and checks the toolchain,
+kernel-devel, Secure Boot and driver availability in one pass.
 
 ---
 
@@ -65,7 +68,8 @@ sudo dnf install -y autoconf automake libtool pkgconf-pkg-config \
                     elfutils-libelf-devel ethtool
 ```
 
-Verify the kernel sources — the single most common cause of a failed configure:
+Verify the kernel build tree — the single most common cause of a failed configure. Note this is
+`kernel-devel` (headers and build scaffolding), **not** the kernel source tree:
 
 ```bash
 ls -d /usr/src/kernels/"$(uname -r)"
@@ -75,13 +79,55 @@ cat /usr/src/kernels/"$(uname -r)"/include/config/kernel.release
 
 The last command must print your running `uname -r`, exactly.
 
-> If `kernel-devel-$(uname -r)` is not available, your running kernel is older than the current repo
-> contents. Run `sudo dnf update && sudo reboot`, then start again from step 1. Do **not** install a
-> different `kernel-devel` version to silence the error — see `BUILD.md` §2.
+### If `kernel-devel` will not install
+
+This is the most common blocker, so diagnose before guessing. Note that `kernel-devel` is **headers and
+build scaffolding, not the kernel source tree** — the `.c` files are not needed to build a module, only to
+diff drivers (`BUILD.md` §5).
+
+```bash
+uname -r
+dnf list --showduplicates kernel-devel | tail -20
+```
+
+**If your exact version is listed** — install it:
+
+```bash
+sudo dnf install -y "kernel-devel-$(uname -r)" elfutils-libelf-devel
+```
+
+**If it is not listed**, your running kernel is older than the current repo contents; Rocky rotates
+superseded kernel packages out of AppStream. Either move to the current kernel:
+
+```bash
+sudo dnf install -y kernel kernel-devel elfutils-libelf-devel
+sudo reboot
+uname -r && ls -d /usr/src/kernels/"$(uname -r)"   # must agree after the reboot
+```
+
+…or fetch the exact version from the vault, if you must stay on this kernel:
+
+```bash
+sudo dnf install -y \
+  "https://dl.rockylinux.org/vault/rocky/9.8/AppStream/x86_64/os/Packages/k/kernel-devel-$(uname -r).rpm"
+```
+
+> Do **not** install a different `kernel-devel` version to silence the error. `configure` would succeed and
+> `make` might finish, but the module gets a `vermagic` for the wrong kernel and `modprobe` rejects it with
+> `Invalid module format` — a far more confusing failure, much further along. See `BUILD.md` §2.
 
 ---
 
-## 2. Select the release
+## 2. Get the source and select the release
+
+If the build machine has no clone yet — it usually will not, the master is never delivered as a patch:
+
+```bash
+mkdir -p "$(dirname "$EC_SRC")"
+git clone https://gitlab.com/etherlab.org/ethercat.git "$EC_SRC"
+```
+
+Then pin the release:
 
 ```bash
 cd "$EC_SRC"
@@ -93,6 +139,11 @@ git describe --tags                # must print exactly: 1.6.12
 ```
 
 Do not build from the `stable-1.6` tip. See `BUILD.md` §10.
+
+> The checkout is **never modified** from here on. `./configure` writes only files the master's own
+> `.gitignore` covers, and `/etc/ethercat.conf` is installed to `/etc` rather than edited in the tree. That
+> is why the site settings live in [`config/`](config/) and not as a patch against this clone —
+> `git status` stays empty and you can re-clone at any time. See [`config/README.md`](config/README.md).
 
 ---
 
