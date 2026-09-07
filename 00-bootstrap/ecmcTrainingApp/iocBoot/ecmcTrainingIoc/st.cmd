@@ -1,4 +1,4 @@
-#!../../bin/linux-x86_64/ecmcTrainingIoc
+#!../../bin/current/ecmcTrainingIoc
 #
 # Phase 0 smoke test: start ecmc with NO EtherCAT hardware.
 #

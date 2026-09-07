@@ -119,6 +119,12 @@ if [[ ! -x "$ioc_bin" ]]; then
 fi
 echo "    built $ioc_bin"
 
+# Arch-neutral symlink for the st.cmd shebangs. Sites name the host arch
+# differently -- upstream auto-detection says linux-x86_64, PCDS builds are
+# rhel9-x86_64 -- so no committed file may hardcode it.
+ln -sfn "$EPICS_HOST_ARCH" "$app/bin/current"
+echo "    bin/current -> $EPICS_HOST_ARCH"
+
 # ---------------------------------------------------------------------------
 # 4. the env contract that replaces `require`
 #

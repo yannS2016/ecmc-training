@@ -1,4 +1,4 @@
-#!../00-bootstrap/ecmcTrainingApp/bin/linux-x86_64/ecmcTrainingIoc
+#!../00-bootstrap/ecmcTrainingApp/bin/current/ecmcTrainingIoc
 #
 # Phase 03 -- motion IOC for the training crate:
 #

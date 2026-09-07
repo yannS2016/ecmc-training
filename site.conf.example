@@ -10,13 +10,15 @@
 
 # --- EPICS ------------------------------------------------------------------
 # Base version directory, e.g. /epics/base/7.0.7
-EPICS_BASE=/epics/base/7.0.7
+EPICS_BASE=/cds/group/pcds/epics/base/R7.0.3.1-2.0
 
 # Module tree for this base version, e.g. /epics/modules/7.0.7
-EPICS_MODULES=/epics/modules/7.0.7
+EPICS_MODULES=/cds/group/pcds/epics/modules/R7.0.3.1-2.0
 
-# Usually auto-detected from $EPICS_BASE/startup/EpicsHostArch; override if needed.
-#EPICS_HOST_ARCH=linux-x86_64
+# EPICS_HOST_ARCH. Auto-detected from $EPICS_BASE/startup/EpicsHostArch, but that
+# returns the upstream name (linux-x86_64). Sites that build under their own name
+# MUST set it explicitly -- PCDS uses rhel9-x86_64.
+EPICS_HOST_ARCH=rhel9-x86_64
 
 # --- Source checkouts -------------------------------------------------------
 # Where you cloned the upstream repositories. These are read, never modified.
