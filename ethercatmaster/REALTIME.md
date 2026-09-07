@@ -485,12 +485,47 @@ change it; §6 is the only lever. A count that does not move means look elsewher
 
 | Next candidate | Test | Reboot? |
 |---|---|---|
-| P-state transitions | `cpupower frequency-set -g performance`, re-measure | no |
+| P-state / turbo transitions | check `intel_pstate/*` first, then `no_turbo=1` — see below | no |
 | Kernel housekeeping — RCU, workqueues, thermal polling, watchdog | isolate cores (§5), re-measure | yes |
 | The EtherCAT master's own idle-phase bus scanning | `systemctl stop ethercat`, re-measure | no |
 
 Each is cheap, and each isolates one variable. Run them in that order — cheapest and most reversible
 first — and stop when the tail moves.
+
+#### "Performance governor" does not mean fixed frequency
+
+Setting the governor is the usual advice and it is not sufficient. Check what is actually in force:
+
+```bash
+grep . /sys/devices/system/cpu/intel_pstate/*
+dmesg | grep -i 'intel_pstate\|HWP'
+```
+
+On this host the governor was **already** `performance` before anything was changed, so that experiment
+was a no-op — and the state underneath was:
+
+```
+min_perf_pct: 100     floor pinned to maximum
+max_perf_pct: 100     ceiling too -- ordinary P-state scaling is already out
+no_turbo:     0       turbo still ENABLED
+HWP enabled           the hardware, not the kernel, decides when to use it
+```
+
+So sustained frequency was pinned while **turbo transitions continued**, managed autonomously by Speed
+Shift below the kernel's visibility. Each transition stalls the core, and turbo residency tracks thermal
+headroom — which varies on a timescale of tens of seconds, not milliseconds.
+
+Turbo can be disabled at runtime, which makes it a five-minute experiment rather than a BIOS trip:
+
+```bash
+echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo
+# ... measure ...
+echo 0 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo
+```
+
+`intel_pstate=disable` on the kernel command line takes the driver out entirely, and `tuned`'s `realtime`
+profile sets it — so if you are going to isolate cores anyway (§5), that arrives at the same time.
+
 
 ### Recording the comparison
 
