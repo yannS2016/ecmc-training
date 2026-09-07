@@ -381,6 +381,13 @@ DEVICE_MODULES="generic"
 UPDOWN_INTERFACES="eno1"
 ```
 
+> **`make install` overwrites this file.** `script/Makefile.am` declares it `dist_sysconf_DATA`, which
+> automake installs unconditionally — so any later `make install` (a version bump, or the rebuild for an RT
+> kernel in [`REALTIME.md`](REALTIME.md) §4) silently restores the upstream template and drops your three
+> settings. The master then starts with `MASTER0_DEVICE` empty and finds no NIC. This is the main reason
+> the settings are tracked in [`config/`](config/) rather than hand-edited: re-running
+> `sudo ./apply-config.sh` puts them back in one command.
+
 - **`MASTER0_DEVICE` — use the MAC, not `eno1`.** `ethercatctl` resolves either
   (`script/ethercatctl.in:73-89`), but interface names can be renamed by udev or a firmware update; the MAC
   cannot. It is also what determines how many masters exist: one non-empty `MASTER<n>_DEVICE` per master.

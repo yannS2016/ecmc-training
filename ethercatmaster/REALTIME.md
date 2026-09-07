@@ -116,6 +116,11 @@ make clean
 make all modules -j"$(nproc)"
 sudo make modules_install install CONFIG_MODULE_SIG_ALL=
 sudo depmod -a
+
+# make install just overwrote /etc/ethercat.conf with the upstream template.
+# Put the site settings back before starting the master.
+( cd <training>/ethercatmaster/config && sudo ./apply-config.sh )
+
 sudo systemctl restart ethercat
 ```
 
