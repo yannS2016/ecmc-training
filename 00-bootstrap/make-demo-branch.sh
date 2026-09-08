@@ -26,7 +26,7 @@
 #   export ECMC_SRC=/cds/group/pcds/epics/R7.0.3.1-2.0/modules/ecmc/R11.0.8
 #   bash 00-bootstrap/make-demo-branch.sh [--site=<name>]
 #
-# --site selects which sites/<name>/{ecmc.local,ecmcexample.local} step 6
+# --site selects which sites/<name>/{release.ecmc.local,release.ecmcexample.local} step 6
 # copies in. Defaults to the SITE environment variable, or "pcds" if that is
 # also unset -- so a plain run with no argument still does the right thing
 # for this course's primary site.
@@ -322,14 +322,14 @@ replace_once ecmcExampleTop/ecmcIocApp/src/Makefile 05b-old.txt 05b-new.txt "5b/
 # `SUPPORT = ...` override here, based on the upstream epics-modules/ecmc
 # git tag content rather than what PCDS actually runs -- that guess does not
 # match this site's real convention. A different site with a different
-# RELEASE convention gets its own sites/<name>/{ecmc.local,ecmcexample.local}
+# RELEASE convention gets its own sites/<name>/{release.ecmc.local,release.ecmcexample.local}
 # and --site=<name> selects it (see the header comment).
 #
 # The two files differ only in that ecmcexample's carries the extra
 # "ECMC = $(TOP)/.." block: ecmcExampleTop is an embedded TOP one level
 # under $ECMC_SRC, so it must point ECMC back at its parent explicitly.
 # ---------------------------------------------------------------------------
-for pair in ".:ecmc.local" "ecmcExampleTop:ecmcexample.local"; do
+for pair in ".:release.ecmc.local" "ecmcExampleTop:release.ecmcexample.local"; do
   d="${pair%%:*}"; src="${pair##*:}"
   f="$d/configure/RELEASE.local"
   if [[ ! -f "$f" ]]; then

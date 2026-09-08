@@ -48,7 +48,7 @@ cp sites/pcds/site.conf site.conf  # or site.conf.example on your own hardware, 
 
 `site.conf` is gitignored, so each host keeps its own. `sites/<name>/` holds
 committed profiles for facilities that run this course repeatedly -- `site.conf`
-plus the `ecmc.local`/`ecmcexample.local` RELEASE.local templates
+plus the `release.ecmc.local`/`release.ecmcexample.local` RELEASE.local templates
 `make-demo-branch.sh` needs; `site.conf.example` is the generic template for
 anyone else. `bootstrap.sh` and `make-demo-branch.sh` take `--site=<name>`
 (or the `SITE` environment variable) to pick which `sites/<name>/` to use,
@@ -89,7 +89,7 @@ you should be able to explain by the end.
 
 ```
 site.conf.example      generic template: every key, documented, with placeholders
-sites/<name>/           committed per-site profile: site.conf, ecmc.local, ecmcexample.local
+sites/<name>/           committed per-site profile: site.conf, release.ecmc.local, release.ecmcexample.local
 sites/pcds/             the PCDS profile — copy sites/pcds/site.conf to site.conf
 ethercatmaster/
   BUILD.md             why the EtherCAT master build is kernel-coupled

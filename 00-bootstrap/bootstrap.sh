@@ -11,7 +11,7 @@
 # Everything it writes is derived from site.conf and is gitignored, so this
 # repository stays portable while your host paths stay yours.
 #
-# --site=<name> selects which sites/<name>/{ecmc.local,ecmcexample.local}
+# --site=<name> selects which sites/<name>/{release.ecmc.local,release.ecmcexample.local}
 # make-demo-branch.sh copies into $ECMC_SRC (step 2b). Defaults to the SITE
 # environment variable, or "pcds" if that is also unset. Only meaningful the
 # first time a site's RELEASE.local is created -- see make-demo-branch.sh.
@@ -169,7 +169,7 @@ echo
 # Normally $ECMC_SRC is read-only. The exception is ecmc 11.0.x, which does
 # not compile against upstream motor as released, plus a few site-specific
 # fixes -- including the real RELEASE.local for $SITE (see make-demo-branch.sh
-# step 6 and sites/$SITE/{ecmc.local,ecmcexample.local}) that keeps
+# step 6 and sites/$SITE/{release.ecmc.local,release.ecmcexample.local}) that keeps
 # checkRelease from rejecting the training IOC's build. make-demo-branch.sh
 # rewrites the checkout in place from the pristine v11.0.8 tag every run, so
 # it is always applying a known starting state rather than a patch against
