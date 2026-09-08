@@ -53,15 +53,15 @@ diff --git a/configure/CONFIG_SITE b/configure/CONFIG_SITE
 --- a/configure/CONFIG_SITE
 +++ b/configure/CONFIG_SITE
 @@ -37,6 +37,11 @@
-
+ 
  USR_CXXFLAGS += -DUSE_TYPED_RSET
-
+ 
 +EXPRTK = $(TOP)/exprtkSupport
 +RUCKIG = $(PSPKG_ROOT)/ruckig/R0.19.4
 +ETHERLAB = $(PSPKG_ROOT)/etherlab
 +ECMCCFG = $(PSPKG_ROOT)/ecmccfg/R11.0.8
 +ECMCCOMP = $(PSPKG_ROOT)/ecmccomp/R0.2.16
-
+ 
  # These allow developers to override the CONFIG_SITE variable
  # settings without having to modify the configure/CONFIG_SITE
 diff --git a/ecmcExampleTop/configure/CONFIG_SITE b/ecmcExampleTop/configure/CONFIG_SITE
@@ -70,7 +70,7 @@ diff --git a/ecmcExampleTop/configure/CONFIG_SITE b/ecmcExampleTop/configure/CON
 @@ -35,6 +35,12 @@
  #HOST_OPT = NO
  #CROSS_OPT = NO
-
+ 
 +EXPRTK = $(TOP)/exprtkSupport
 +RUCKIG = $(PSPKG_ROOT)/ruckig/R0.19.4
 +ETHERLAB = $(PSPKG_ROOT)/etherlab

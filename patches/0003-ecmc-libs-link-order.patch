@@ -21,7 +21,8 @@ before anything wants it, contributes nothing, and is discarded:
     ... and `typeinfo for asynPortDriver'
 
 Note it is undefined references, not `cannot find -lasyn`.  The linker found
-the library; it looked at it too early.
+the library; it looked at it too early.  Those two failures need opposite
+fixes, so the distinction is worth reading carefully.
 
 Reordering so dependents precede dependencies -- ecmc needs asyn, motor needs
 asyn, so asyn goes last -- is correct under both linking modes.  It is not a
@@ -34,6 +35,17 @@ a site building with `STATIC_BUILD=YES` -- as PCDS does -- ever sees it.
 Worth reporting upstream: the ordering is wrong regardless of how any
 particular site links.
 
+NOT SUFFICIENT ON ITS OWN FOR A STATIC BUILD.  The full link line also carries
+`-lethercat` and `-lruckig` ahead of `-lecmc`, because those come from
+`USR_LDFLAGS` in devEcmcSup/Makefile, which EPICS emits before the
+`_LIBS`-generated flags.  This patch gets you past asyn and into undefined
+`ecrt_*` and ruckig symbols.  Fixing that properly means moving them to
+`ecmcIoc_SYS_LIBS`, which EPICS emits last -- an upstream change to how ecmc
+attaches its libraries, not carried here.  On a lab host, set
+`STATIC_BUILD = NO` in ecmcExampleTop/configure/CONFIG_SITE.local instead:
+ecmc emits `-Wl,-rpath=`, which does nothing in a static link, so dynamic is
+what the module is written for.
+
 Applies to: ecmc v11.0.8
 Verified on: EPICS base R7.0.3.1-2.0, STATIC_BUILD=YES, rhel9-x86_64
 ---
@@ -43,9 +55,9 @@ Verified on: EPICS base R7.0.3.1-2.0, STATIC_BUILD=YES, rhel9-x86_64
 diff --git a/ecmcExampleTop/ecmcIocApp/src/Makefile b/ecmcExampleTop/ecmcIocApp/src/Makefile
 --- a/ecmcExampleTop/ecmcIocApp/src/Makefile
 +++ b/ecmcExampleTop/ecmcIocApp/src/Makefile
-@@ -44,7 +44,11 @@
+@@ -44,9 +44,13 @@
  ecmcIoc_DBD += motorSupport.dbd
-
+ 
  # Add all the support libraries needed by this IOC
 -ecmcIoc_LIBS += asyn
 +# Order matters: a static archive contributes only the symbols already
@@ -56,3 +68,5 @@ diff --git a/ecmcExampleTop/ecmcIocApp/src/Makefile b/ecmcExampleTop/ecmcIocApp/
  ecmcIoc_LIBS += motor
  ecmcIoc_LIBS += exprtkSupport
 +ecmcIoc_LIBS += asyn
+ 
+ ecmcIoc_SRCS += ecmcIoc_registerRecordDeviceDriver.cpp

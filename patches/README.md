@@ -278,3 +278,32 @@ The patch header records the alternative: both files `-include
 $(TOP)/configure/CONFIG_SITE.local`, so the same five lines in an untracked
 file work without modifying anything tracked. Pick one. Doing both means two
 places to forget.
+
+---
+
+## Checking the patches themselves
+
+```bash
+./patches/validate.sh                    # is each patch a well-formed diff?
+./00-bootstrap/apply-patches.sh --check  # does each one apply to this checkout?
+```
+
+Two different questions. The first is about the patch files; the second about
+the checkout they target.
+
+`validate.sh` exists because two invisible defects both surface as the same
+unhelpful `does not apply`, and both cost real time to chase:
+
+- **A blank context line written as a genuinely empty line.** Unified diff
+  requires a leading space on *every* line of a hunk body — blank ones
+  included. `diff -u` emits `" \n"`; a hand-written hunk naturally gets `"\n"`.
+  Nothing renders the difference.
+- **Hunk header counts that disagree with the body.** `@@ -44,7 +44,11 @@` when
+  the body actually has 9 and 13 lines.
+
+`git apply` reports both as a context mismatch, which reads like a version
+problem. It is not — `git apply` matches file content and never looks at a tag.
+
+**Generate hunks with `diff -u`, not by hand.** Reconstruct the file region
+before and after, diff the two, and splice the result in. Every defect above
+came from typing a hunk out and counting its lines by eye.

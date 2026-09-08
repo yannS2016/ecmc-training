@@ -46,7 +46,7 @@ diff --git a/devEcmcSup/Makefile b/devEcmcSup/Makefile
 @@ -23,7 +23,7 @@
  USR_LDFLAGS += -lstdc++
  USR_CXXFLAGS += -std=c++17
-
+ 
 -ifneq ($(filter linux-%,$(T_A)),)
 +ifneq ($(filter linux-% rhel%,$(T_A)),)
  ETHERLAB ?= /opt/etherlab
@@ -58,7 +58,7 @@ diff --git a/ecmcExampleTop/ecmcIocApp/src/Makefile b/ecmcExampleTop/ecmcIocApp/
 @@ -14,7 +14,7 @@
  USR_LDFLAGS_Linux += -Wl,--no-as-needed
  USR_CXXFLAGS += -std=c++17
-
+ 
 -ifneq ($(filter linux-%,$(T_A)),)
 +ifneq ($(filter linux-% rhel%,$(T_A)),)
  ETHERLAB ?= /opt/etherlab
