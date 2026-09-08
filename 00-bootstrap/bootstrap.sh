@@ -242,6 +242,17 @@ write_paths_file() {
 # This file is what a require-based IOC would get for free when it ran
 # "require ecmc" / "require ecmccfg".  We set it explicitly instead.
 
+# Registers this IOC's compiled-in records, drivers and iocsh commands --
+# including requireStub's own \`require\` -- with the running database.
+# Without this, nothing DBD-declared exists yet: even \`require ecmccfg\`
+# below fails with "Command require not found", because requireStub.dbd's
+# registrar() line (which is what calls requireStubRegister() to register
+# the command) is never run until dbLoadDatabase loads it. An absolute path
+# here because this file is included from a different working directory
+# per phase (the phase-00 boot dir, vs. each later phase's own directory).
+dbLoadDatabase("$app/dbd/ecmcTrainingIoc.dbd",0,0)
+ecmcTrainingIoc_registerRecordDeviceDriver(pdbbase)
+
 # Trailing slash on ecmccfg_DIR is MANDATORY: ecmccfg builds paths by direct
 # concatenation, e.g. \${ecmccfg_DIR}addSlave.cmd
 epicsEnvSet("ecmccfg_DIR",           "$STAGE/")
