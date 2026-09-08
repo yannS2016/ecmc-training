@@ -60,6 +60,7 @@ ecmcTrainingIoc_DBD += asyn.dbd
 ecmcTrainingIoc_DBD += motorSupport.dbd
 ecmcTrainingIoc_DBD += ECATtimestamp.dbd
 ecmcTrainingIoc_DBD += requireStub.dbd
+ecmcTrainingIoc_DBD += systemStub.dbd
 
 ecmcTrainingIoc_LIBS += ecmc
 ecmcTrainingIoc_LIBS += motor
@@ -78,6 +79,7 @@ ecmcTrainingIoc_SYS_LIBS += ruckig
 ecmcTrainingIoc_SRCS += ecmcTrainingIoc_registerRecordDeviceDriver.cpp
 ecmcTrainingIoc_SRCS += ECATtimestamp.cpp
 ecmcTrainingIoc_SRCS += requireStub.cpp
+ecmcTrainingIoc_SRCS += systemStub.cpp
 
 ecmcTrainingIoc_SRCS_DEFAULT += ecmcTrainingMain.cpp
 ecmcTrainingIoc_SRCS_vxWorks += -nil-
