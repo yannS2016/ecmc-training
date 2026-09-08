@@ -156,8 +156,13 @@ echo
 # starting state rather than a patch against whatever the tree happens to
 # already look like.
 # ---------------------------------------------------------------------------
-echo
-ECMC_SRC="$ECMC_SRC" "$here/make-demo-branch.sh"
+if [[ "$(git -C "$ECMC_SRC" branch --show-current 2>/dev/null)" == "demo" ]]; then
+  echo "==> \$ECMC_SRC already on 'demo' -- skipping make-demo-branch.sh"
+  echo "    (re-run it yourself if you need to redo it: ECMC_SRC=$ECMC_SRC $here/make-demo-branch.sh)"
+else
+  echo
+  ECMC_SRC="$ECMC_SRC" "$here/make-demo-branch.sh"
+fi
 
 # ---------------------------------------------------------------------------
 # 3. build the IOC
