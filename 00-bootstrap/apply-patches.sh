@@ -10,8 +10,9 @@
 #
 #     0001-ecmc-guard-motorLimitRO.patch    ->  $ECMC_SRC   compile fix
 #     0002-ecmc-arch-filter-rhel.patch      ->  $ECMC_SRC   non-linux-* arch name
-#     0003-ecmc-libs-link-order.patch       ->  $ECMC_SRC   static link order
+#     0003-ecmc-libs-link-order.patch       ->  $ECMC_SRC   link order: _LIBS
 #     0004-ecmc-site-module-paths.patch     ->  $ECMC_SRC   PCDS paths -- SITE-SPECIFIC
+#     0005-ecmc-thirdparty-link-order.patch ->  $ECMC_SRC   link order: USR_LDFLAGS
 #
 # 0004 is only correct for a site laying modules out under $PSPKG_ROOT. On any
 # other site, drop it and set the paths in configure/CONFIG_SITE.local instead.

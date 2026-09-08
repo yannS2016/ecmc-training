@@ -35,16 +35,11 @@ a site building with `STATIC_BUILD=YES` -- as PCDS does -- ever sees it.
 Worth reporting upstream: the ordering is wrong regardless of how any
 particular site links.
 
-NOT SUFFICIENT ON ITS OWN FOR A STATIC BUILD.  The full link line also carries
-`-lethercat` and `-lruckig` ahead of `-lecmc`, because those come from
-`USR_LDFLAGS` in devEcmcSup/Makefile, which EPICS emits before the
-`_LIBS`-generated flags.  This patch gets you past asyn and into undefined
-`ecrt_*` and ruckig symbols.  Fixing that properly means moving them to
-`ecmcIoc_SYS_LIBS`, which EPICS emits last -- an upstream change to how ecmc
-attaches its libraries, not carried here.  On a lab host, set
-`STATIC_BUILD = NO` in ecmcExampleTop/configure/CONFIG_SITE.local instead:
-ecmc emits `-Wl,-rpath=`, which does nothing in a static link, so dynamic is
-what the module is written for.
+NOT SUFFICIENT ON ITS OWN FOR A STATIC BUILD.  The link line also carries
+`-lethercat` and `-lruckig` ahead of `-lecmc`, because those arrive via
+`USR_LDFLAGS` in ecmcExampleTop/ecmcIocApp/src/Makefile, which EPICS emits
+before the `_LIBS`-generated flags.  This patch gets you past asyn and into
+undefined `ecrt_*` and `ruckig::` symbols.  0005 fixes those.
 
 Applies to: ecmc v11.0.8
 Verified on: EPICS base R7.0.3.1-2.0, STATIC_BUILD=YES, rhel9-x86_64

@@ -307,3 +307,66 @@ problem. It is not — `git apply` matches file content and never looks at a tag
 **Generate hunks with `diff -u`, not by hand.** Reconstruct the file region
 before and after, diff the two, and splice the result in. Every defect above
 came from typing a hunk out and counting its lines by eye.
+
+---
+
+## 0005-ecmc-thirdparty-link-order.patch
+
+**The other half of `0003`. Same defect, different mechanism.**
+
+```
+libecmc.a(ecmcEc.o): undefined reference to `ecrt_release_master'
+libecmc.a(ecmcTrajectoryS.o): undefined reference to
+  `ruckig::PositionSecondOrderStep1::get_profile(...)'
+```
+
+117 undefined references on this host, in exactly two families — `ecrt_*` and
+`ruckig::`.
+
+### Why `0003` could not fix it
+
+`0003` reordered `ecmcIoc_LIBS`. These two libraries never go through `_LIBS`:
+they are added by `USR_LDFLAGS` in `ecmcExampleTop/ecmcIocApp/src/Makefile`,
+which EPICS emits *before* the object files:
+
+```
+g++ -o ecmcIoc -Wl,-Bstatic ... -lethercat ... -lruckig ...
+    ecmcIoc*.o -lecmc -lmotor -lexprtkSupport -lasyn ... -Wl,-Bdynamic ...
+```
+
+Moving the `-l` flags into `ecmcIoc_LIBS` puts them inside the `-Wl,-Bstatic`
+region *after* `-lecmc`, which is where a dependency of ecmc belongs. The `-L`
+and `-Wl,-rpath` flags stay in `USR_LDFLAGS` — only `-l` position matters to
+archive resolution.
+
+### Two details the file dictates
+
+- **The RUCKIG block sits outside the arch conditional.** That is why
+  `-lruckig` reached the link line even before `0002` fixed the filter, when the
+  entire ETHERLAB block was being skipped. It needs its own hunk.
+- **Both branches of the conditional add `-lethercat`.** Patching only the
+  native branch leaves a Yocto cross-build broken in a different way.
+
+### Ordering
+
+`apply-patches.sh` applies patches in numeric order to one working tree, so this
+patch's context is the file with `0002` and `0003` already applied. That is not
+incidental — `0003` rewrote the `_LIBS` block this one appends to.
+
+### If EPICS rejects a non-EPICS name in `_LIBS`
+
+`_LIBS` is EPICS's mechanism for EPICS-built libraries; third-party entries work
+because EPICS simply emits `-l<name>` and the `-L` is already supplied. If your
+base instead tries to resolve them as module dependencies, use
+`ecmcIoc_SYS_LIBS` — emitted after `-Wl,-Bdynamic`, so EPICS libraries stay
+static while these two link dynamically through the rpaths already present. That
+works too, and costs only the fully-self-contained binary.
+
+Verify which you got:
+
+```bash
+ldd bin/rhel9-x86_64/ecmcIoc | grep -E 'ethercat|ruckig'
+```
+
+Nothing printed means fully static. Two lines means the `SYS_LIBS` outcome, which
+is fine as long as the rpaths resolve.
