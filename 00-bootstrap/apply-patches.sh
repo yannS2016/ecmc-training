@@ -90,7 +90,8 @@ for p in "$patchdir"/*.patch; do
         echo "    NOT applied (would apply cleanly)"
         n_fail=$((n_fail + 1))
       else
-        echo "    NOT applied and does NOT apply cleanly -- checkout version changed?"
+        echo "    NOT applied and does NOT apply cleanly. git says:"
+        git -C "$dir" apply --check --verbose "$p" 2>&1 | sed "s/^/        /"
         n_fail=$((n_fail + 1))
       fi
       ;;
@@ -112,8 +113,14 @@ for p in "$patchdir"/*.patch; do
         n_applied=$((n_applied + 1))
       else
         echo "    FAIL: does not apply to $dir"
-        echo "          The checkout may be on a different version than the patch"
-        echo "          targets. Check: git -C $dir describe --tags"
+        echo "          git says:"
+        git -C "$dir" apply --check --verbose "$p" 2>&1 | sed 's/^/            /'
+        echo "          Read that before assuming a version mismatch. The usual"
+        echo "          causes, in order of likelihood:"
+        echo "            - the file already carries the change, by hand"
+        echo "            - the file was edited near the patched region"
+        echo "            - the checkout really is a different version:"
+        echo "              git -C $dir describe --tags"
         n_fail=$((n_fail + 1))
       fi
       ;;
