@@ -117,3 +117,164 @@ this motor — changing one does not change the other. See
 Worth reporting at <https://github.com/epics-modules/ecmc/issues>: v11.0.8 does
 not compile against `epics-modules/motor` at any released version, because these
 six uses lack the guard that the same directory's controller file documents.
+
+---
+
+## 0002-ecmc-arch-filter-rhel.patch
+
+**Without this, `-lethercat` cannot be found — and the message is misleading.**
+
+```
+/usr/bin/ld: cannot find -lethercat
+```
+
+with the flags
+
+```
+-L /usr/lib/etherlab -lethercat -Wl,-rpath=/usr/lib/etherlab
+```
+
+### Why it happens
+
+`devEcmcSup/Makefile:26` decides where the EtherCAT user library lives:
+
+```make
+ifneq ($(filter linux-%,$(T_A)),)
+```
+
+That assumes every native Linux build uses the stock EPICS host architecture
+name. EPICS has never required that. PCDS builds as `rhel9-x86_64`, the filter
+misses, and the build silently takes the `else` branch — the Yocto
+cross-compile path — where `$(SDKTARGETSYSROOT)` is unset and
+`-L $(SDKTARGETSYSROOT)/usr/lib/etherlab` collapses to `-L /usr/lib/etherlab`.
+
+**The space after `-L` is how you identify it.** The native branch writes
+`-L$(ETHERLAB)/lib` with no space, so that literal can only have come from the
+cross-compile branch.
+
+Two things this is *not*, both of which look plausible and waste time:
+
+- **Not the `ETHERLAB` value.** The `else` branch never references `ETHERLAB`.
+  It can be perfectly correct and you still get `-L /usr/lib/etherlab`.
+- **Not a missing library.** `/opt/etherlab/lib/libethercat.so` was present
+  and correct throughout.
+
+Nothing warns, because a cross-compile with no sysroot configured is
+indistinguishable from a correct one until the linker runs.
+
+### Why `rhel%` and not `rhel-%`
+
+The arch is `rhel9-x86_64`, so `%` must absorb `9-x86_64`. `linux-%` keeps its
+dash because that name really does have one; `rhel-%` would match nothing.
+
+Add `rocky%`, `centos%` or whatever your site uses. Testing
+`ifeq ($(SDKTARGETSYSROOT),)` instead would be more robust — the `else`
+branch's own comment says its premise is a Yocto SDK build, and that is exactly
+when the variable is set — but enumerating prefixes is the smaller change and
+does not alter behaviour for existing Yocto users.
+
+### Both copies
+
+`ecmcExampleTop/ecmcIocApp/src/Makefile` carries the same block verbatim. Patch
+one and the module builds, then the example IOC fails identically. This patch
+does both.
+
+---
+
+## 0003-ecmc-libs-link-order.patch
+
+**Only bites when `STATIC_BUILD=YES`, but the ordering is wrong either way.**
+
+```
+libecmc.a(ecmcAsynPortDriver.o): undefined reference to
+  `asynPortDriver::asynPortDriver(char const*, int, int, int, int, int, int, int)'
+... and `typeinfo for asynPortDriver'
+```
+
+### Why it happens
+
+`ecmcExampleTop/ecmcIocApp/src/Makefile` lists `asyn` before `ecmc`, and EPICS
+emits `_LIBS` in the order given:
+
+```
+-lasyn -lecmc -lmotor -lexprtkSupport
+```
+
+A static archive contributes only the symbols already demanded by something to
+its left. `libecmc.a` needs `asynPortDriver`, but `libasyn.a` was scanned
+before anything wanted it, contributed nothing, and was discarded.
+
+Note the error is *undefined references*, not `cannot find -lasyn`. The linker
+found the library and looked at it too early. Those two failures need opposite
+fixes, so the distinction is worth reading carefully.
+
+### Why nobody has hit it before
+
+Shared libraries record their dependencies in `DT_NEEDED`, so the runtime
+loader repairs bad ordering and it never surfaces. Only a site linking IOC
+executables statically sees it. PCDS does:
+
+```
+$EPICS_BASE/configure/CONFIG_SITE:173  SHARED_LIBRARIES=YES
+$EPICS_BASE/configure/CONFIG_SITE:177  STATIC_BUILD=YES
+```
+
+`SHARED_LIBRARIES=YES` is why `libecmc.so` builds fine — only the executable
+link is static.
+
+Worth reporting upstream. Dependents belong before dependencies regardless of
+how any particular site links.
+
+### If you are linking statically, this patch is not sufficient
+
+The full link line also carries `-lethercat` and `-lruckig` **ahead of**
+`-lecmc`, because they come from `USR_LDFLAGS` in `devEcmcSup/Makefile`, which
+EPICS emits before the `_LIBS`-generated flags. Fixing `_LIBS` gets you past
+asyn and straight into undefined `ecrt_*` and ruckig symbols.
+
+Properly fixing that means moving them to `ecmcIoc_SYS_LIBS`, which EPICS emits
+last — an upstream change to how ecmc attaches its libraries, correct for both
+the shared library and the static executable. That is not carried here.
+
+**On a training or lab host, link dynamically instead:**
+
+```make
+# ecmcExampleTop/configure/CONFIG_SITE.local
+STATIC_BUILD = NO
+```
+
+The application's `CONFIG_SITE` is read after base's, so this overrides
+site-wide config without touching it. And ecmc emits
+`-Wl,-rpath=$(ETHERLAB)/lib` — an rpath is a dynamic-loader construct that does
+nothing in a static link, so the module is written expecting dynamic linking.
+Three separate build failures came from fighting that. Porting ecmc to static
+linking is real work and a separate project from getting an axis moving.
+
+---
+
+## 0004-ecmc-site-module-paths.patch
+
+**Site-specific. Skip it unless your site lays modules out the way PCDS does.**
+
+Points `ETHERLAB`, `RUCKIG`, `ECMCCFG`, `ECMCCOMP` and `EXPRTK` at
+`$PSPKG_ROOT` instead of ecmc's `$(SUPPORT)/...` defaults.
+
+The trap worth knowing even if you skip the patch: `devEcmcSup/Makefile` has
+`ETHERLAB ?= /opt/etherlab`, which looks like a safety net and is not. `?=`
+assigns only when a variable is unset, and `configure/RELEASE` sets `ETHERLAB`
+before that line is read, so the fallback never fires. The build searches
+`<ecmc>/../etherlab/lib` — the source checkout, where the built library is in
+`lib/.libs/` — and fails as though the library were missing.
+
+The example IOC is a separate EPICS application with its own `configure/` and
+inherits none of this, which is how the omission was found.
+
+`$(PSPKG_ROOT)` is an environment variable so the paths are parameterised, but
+the version directories are not, and must be updated on a version bump. They
+also appear in [`../sites/pcds.conf`](../sites/pcds.conf) — keep the two in
+step.
+
+The patch header records the alternative: both files `-include
+$(TOP)/configure/CONFIG_SITE.local`, so the same five lines in an untracked
+file work without modifying anything tracked. Pick one. Doing both means two
+places to forget.

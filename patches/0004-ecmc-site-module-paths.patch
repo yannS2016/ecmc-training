@@ -1,0 +1,82 @@
+Subject: [PATCH] build: point ETHERLAB/RUCKIG/ECMCCFG at the site package tree
+
+SITE-SPECIFIC.  Skip this patch unless your site lays modules out the way PCDS
+does.  It is carried here because without it the build cannot find its
+dependencies, and an undocumented local edit is worse than a reviewed patch.
+
+ecmc's `configure/RELEASE` defaults every external module to `$(SUPPORT)/...`,
+a sibling of `epics-base`.  PCDS installs them under `$PSPKG_ROOT` in versioned
+directories, which no default matches:
+
+    ETHERLAB = $(SUPPORT)/etherlab          ->  <ecmc>/../etherlab
+    actual                                  ->  $PSPKG_ROOT/etherlab -> /opt/etherlab
+
+The `?= /opt/etherlab` fallback in `devEcmcSup/Makefile` does not rescue this.
+`?=` assigns only when a variable is unset, and `RELEASE` is read first, so the
+fallback never fires.  The build looks in the source checkout, where the built
+library lives in `lib/.libs/` rather than `lib/`, and fails as if the library
+were missing.
+
+Setting these in `CONFIG_SITE` rather than `RELEASE` is deliberate: `RELEASE`
+is subject to `CHECK_RELEASE = YES` consistency checking against every other
+module's `RELEASE`, and these paths are local to this build.
+
+`$(PSPKG_ROOT)` is an environment variable, so the paths are parameterised
+rather than hardcoded -- but the version directories (`R0.19.4`, `R11.0.8`,
+`R0.2.16`) are not, and will need updating on any version bump.  They are
+recorded in `sites/pcds.conf` too; keep the two in step.
+
+The example IOC is a separate EPICS application with its own `configure/`, and
+inherits nothing from the module's.  It needs the same settings or it fails the
+same way -- which is exactly how this was found.
+
+### The alternative, if you would rather not patch
+
+Both files end with:
+
+    -include $(TOP)/configure/CONFIG_SITE.local
+
+so the same five lines in an untracked `configure/CONFIG_SITE.local` work
+without touching a tracked file.  That is arguably the more correct home for
+site paths.  This patch exists because a tracked, reviewed change is easier to
+audit six months later than a file that only exists on one machine.  Choose one
+-- doing both means two places to update.
+
+Applies to: ecmc v11.0.8
+Verified on: SLAC PCDS, EPICS base R7.0.3.1-2.0, rhel9-x86_64
+---
+ configure/CONFIG_SITE                | 5 +++++
+ ecmcExampleTop/configure/CONFIG_SITE | 6 ++++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/configure/CONFIG_SITE b/configure/CONFIG_SITE
+--- a/configure/CONFIG_SITE
++++ b/configure/CONFIG_SITE
+@@ -37,6 +37,11 @@
+
+ USR_CXXFLAGS += -DUSE_TYPED_RSET
+
++EXPRTK = $(TOP)/exprtkSupport
++RUCKIG = $(PSPKG_ROOT)/ruckig/R0.19.4
++ETHERLAB = $(PSPKG_ROOT)/etherlab
++ECMCCFG = $(PSPKG_ROOT)/ecmccfg/R11.0.8
++ECMCCOMP = $(PSPKG_ROOT)/ecmccomp/R0.2.16
+
+ # These allow developers to override the CONFIG_SITE variable
+ # settings without having to modify the configure/CONFIG_SITE
+diff --git a/ecmcExampleTop/configure/CONFIG_SITE b/ecmcExampleTop/configure/CONFIG_SITE
+--- a/ecmcExampleTop/configure/CONFIG_SITE
++++ b/ecmcExampleTop/configure/CONFIG_SITE
+@@ -35,6 +35,12 @@
+ #HOST_OPT = NO
+ #CROSS_OPT = NO
+
++EXPRTK = $(TOP)/exprtkSupport
++RUCKIG = $(PSPKG_ROOT)/ruckig/R0.19.4
++ETHERLAB = $(PSPKG_ROOT)/etherlab
++ECMCCFG = $(PSPKG_ROOT)/ecmccfg/R11.0.8
++ECMCCOMP = $(PSPKG_ROOT)/ecmccomp/R0.2.16
++
+ # These allow developers to override the CONFIG_SITE variable
+ # settings without having to modify the configure/CONFIG_SITE
+ # file itself.

@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
-#
 # apply-patches.sh -- apply the course's patches to the upstream checkouts.
 #
-# The course treats upstream checkouts as read-only, with one exception: ecmc
-# 11.0.x does not compile against upstream `motor` at any released version. See
-# ../patches/README.md for the diagnosis.
+# The course treats upstream checkouts as read-only, with these exceptions.
+# Two are portability fixes that any site would need; two are narrower. See
+# ../patches/README.md for the diagnosis behind each.
 #
 # Patches live in ../patches/ and are named <NNNN>-<target>-<description>.patch,
 # where <target> selects which checkout they apply to:
 #
-#     0001-ecmc-guard-motorLimitRO.patch   ->  $ECMC_SRC
+#     0001-ecmc-guard-motorLimitRO.patch    ->  $ECMC_SRC   compile fix
+#     0002-ecmc-arch-filter-rhel.patch      ->  $ECMC_SRC   non-linux-* arch name
+#     0003-ecmc-libs-link-order.patch       ->  $ECMC_SRC   static link order
+#     0004-ecmc-site-module-paths.patch     ->  $ECMC_SRC   PCDS paths -- SITE-SPECIFIC
+#
+# 0004 is only correct for a site laying modules out under $PSPKG_ROOT. On any
+# other site, drop it and set the paths in configure/CONFIG_SITE.local instead.
 #
 # Safe to re-run: an already-applied patch is detected and skipped, not retried.
 #
@@ -27,7 +32,7 @@ MODE=apply
 case "${1:-}" in
   --check)   MODE=check ;;
   --reverse) MODE=reverse ;;
-  -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+  -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
   "")        ;;
   *)         echo "unknown option: $1" >&2; exit 2 ;;
 esac

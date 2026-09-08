@@ -1,0 +1,66 @@
+Subject: [PATCH] build: recognise rhel-* as a native Linux architecture
+
+ecmc decides how to find the EtherCAT user library with:
+
+    ifneq ($(filter linux-%,$(T_A)),)
+
+which assumes every native Linux build uses the stock EPICS host
+architecture name `linux-x86_64`.  EPICS has never required that, and sites
+routinely define their own.  SLAC PCDS builds as `rhel9-x86_64`.
+
+When the filter misses, the build silently takes the `else` branch -- the
+Yocto cross-compile path -- where `$(SDKTARGETSYSROOT)` is unset:
+
+    /usr/bin/ld: cannot find -lethercat
+
+with the flags
+
+    -L /usr/lib/etherlab -lethercat -Wl,-rpath=/usr/lib/etherlab
+
+The space after `-L` is the tell: the native branch writes `-L$(ETHERLAB)/lib`
+with no space, so that literal can only have come from line 38.  The failure
+looks like a missing library and is actually a missed architecture test.
+Nothing warns, because a cross-compile with no sysroot is indistinguishable
+from a correctly configured one until the linker runs.
+
+Note the value of `ETHERLAB` is irrelevant to this failure: the `else` branch
+never references it.  It can be perfectly correct and you still get
+`-L /usr/lib/etherlab`.
+
+`rhel%` deliberately has no dash, unlike `linux-%` -- the arch name is
+`rhel9-x86_64`, so `%` must absorb `9-x86_64`.  `rhel-%` would not match.
+
+The block is duplicated verbatim in the example IOC, so both need it or the
+example fails identically once the module itself builds.
+
+Applies to: ecmc v11.0.8
+Verified on: Rocky 9.8, EPICS_HOST_ARCH=rhel9-x86_64, EPICS base R7.0.3.1-2.0
+---
+ devEcmcSup/Makefile                   | 2 +-
+ ecmcExampleTop/ecmcIocApp/src/Makefile | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/devEcmcSup/Makefile b/devEcmcSup/Makefile
+--- a/devEcmcSup/Makefile
++++ b/devEcmcSup/Makefile
+@@ -23,7 +23,7 @@
+ USR_LDFLAGS += -lstdc++
+ USR_CXXFLAGS += -std=c++17
+
+-ifneq ($(filter linux-%,$(T_A)),)
++ifneq ($(filter linux-% rhel%,$(T_A)),)
+ ETHERLAB ?= /opt/etherlab
+ USR_INCLUDES += -I$(ETHERLAB)/include
+ USR_CFLAGS += -fPIC
+diff --git a/ecmcExampleTop/ecmcIocApp/src/Makefile b/ecmcExampleTop/ecmcIocApp/src/Makefile
+--- a/ecmcExampleTop/ecmcIocApp/src/Makefile
++++ b/ecmcExampleTop/ecmcIocApp/src/Makefile
+@@ -14,7 +14,7 @@
+ USR_LDFLAGS_Linux += -Wl,--no-as-needed
+ USR_CXXFLAGS += -std=c++17
+
+-ifneq ($(filter linux-%,$(T_A)),)
++ifneq ($(filter linux-% rhel%,$(T_A)),)
+ ETHERLAB ?= /opt/etherlab
+ USR_INCLUDES += -I$(ETHERLAB)/include
+ USR_CFLAGS += -fPIC
