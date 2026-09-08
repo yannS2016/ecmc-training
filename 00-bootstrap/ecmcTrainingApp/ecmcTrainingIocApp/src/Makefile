@@ -16,24 +16,29 @@ USR_LDFLAGS_Linux += -Wl,--no-as-needed
 USR_CXXFLAGS += -std=c++17
 
 # --- Etherlab EtherCAT master ----------------------------------------------
-ifneq ($(filter linux-%,$(T_A)),)
+# rhel% (T_A on this course's target host, rhel9-x86_64) counts as native
+# Linux -- the same arch-filter fix ecmc's own devEcmcSup/Makefile and
+# ecmcExampleTop need (see ../../../make-demo-branch.sh step 1). Without it,
+# $(filter linux-%,$(T_A)) is empty on rhel9-x86_64 and this falls into the
+# cross-compile branch, pointing -L at $(SDKTARGETSYSROOT) (empty on a host
+# build) instead of $(ETHERLAB)/lib -- which is what "cannot find -lethercat"
+# actually means here: not a missing library, a missing -L path.
+ifneq ($(filter linux-% rhel%,$(T_A)),)
 ETHERLAB ?= /opt/etherlab
 USR_INCLUDES += -I$(ETHERLAB)/include
 USR_CFLAGS   += -fPIC
 USR_LDFLAGS  += -L$(ETHERLAB)/lib
-USR_LDFLAGS  += -lethercat
 USR_LDFLAGS  += -Wl,-rpath=$(ETHERLAB)/lib
 else
 USR_INCLUDES += -I$(SDKTARGETSYSROOT)/usr/include/etherlab
 USR_CFLAGS   += -fPIC
 USR_LDFLAGS  += -L$(SDKTARGETSYSROOT)/usr/lib/etherlab
-USR_LDFLAGS  += -lethercat
 USR_LDFLAGS  += -Wl,-rpath=$(SDKTARGETSYSROOT)/usr/lib/etherlab
 endif
 
 # --- ruckig (jerk-limited trajectory generation) ----------------------------
 USR_INCLUDES += -I$(RUCKIG)/include/ruckig
-USR_LDFLAGS  += -L$(RUCKIG)/build -lruckig
+USR_LDFLAGS  += -L$(RUCKIG)/build
 USR_LDFLAGS  += -Wl,-rpath,'$(RUCKIG)/build'
 
 # --- ecmccfg's compiled support ---------------------------------------------
@@ -56,10 +61,19 @@ ecmcTrainingIoc_DBD += motorSupport.dbd
 ecmcTrainingIoc_DBD += ECATtimestamp.dbd
 ecmcTrainingIoc_DBD += requireStub.dbd
 
-ecmcTrainingIoc_LIBS += asyn
 ecmcTrainingIoc_LIBS += ecmc
 ecmcTrainingIoc_LIBS += motor
 ecmcTrainingIoc_LIBS += exprtkSupport
+ecmcTrainingIoc_LIBS += asyn
+
+# ethercat and ruckig are NOT _LIBS: that tells EPICS to search for an
+# EPICS-module library under this application's own lib/<T_A>/ tree, which is
+# where libecmc.a lives and libethercat.a/libruckig.a never will (they are
+# external archives, found through the -L already set above). SYS_LIBS just
+# emits -l<name> with no search, placed after -Wl,-Bdynamic -- still after
+# -lecmc, which is what resolves the ecrt_*/ruckig:: symbols it needs.
+ecmcTrainingIoc_SYS_LIBS += ethercat
+ecmcTrainingIoc_SYS_LIBS += ruckig
 
 ecmcTrainingIoc_SRCS += ecmcTrainingIoc_registerRecordDeviceDriver.cpp
 ecmcTrainingIoc_SRCS += ECATtimestamp.cpp
