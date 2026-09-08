@@ -166,26 +166,27 @@ build, comment it out of `configure/RELEASE` — ecmc needs none of them.
 > `no member named 'motorLowLimitRO_'` errors.
 >
 > No motor version fixes this, and no ecmc 11.x version avoids it. The course
-> ships a one-hunk patch adding the `#ifdef motorHighLimitROString` guard that
-> ecmc's own controller file already documents, and that **EthercatMC — the
-> TwinCAT-ADS driver from the same lineage, already used at PCDS — applies to
-> the identical lines**:
+> rewrites `$ECMC_SRC` onto a `demo` branch adding the
+> `#ifdef motorHighLimitROString` guard that ecmc's own controller file already
+> documents, and that **EthercatMC — the TwinCAT-ADS driver from the same
+> lineage, already used at PCDS — applies to the identical lines**, alongside
+> the other PCDS build fixes (arch filter, site module paths):
 >
 > ```bash
-> ./00-bootstrap/apply-patches.sh
+> ECMC_SRC=/path/to/ecmc/checkout ./00-bootstrap/make-demo-branch.sh
 > ```
 >
-> `bootstrap.sh` runs it automatically and `preflight.sh` fails loudly if it is
-> missing.
+> `bootstrap.sh` runs it automatically and `preflight.sh` fails loudly if the
+> guard is missing.
 >
 > **Nothing that worked before is lost.** Those parameters do not exist on this
 > motor, so the code was writing nowhere. Limit *values* reaching `.DHLM`/`.DLLM`
 > is an optional convenience for sites on the forked motor; `.DLLM`/`.DHLM` are
 > user-settable fields that motorRecord owns and enforces. Hard limit switches
 > (`LLS`/`HLS` in `MSTA`) travel a different, working path and are untouched.
-> Full diagnosis in [`../patches/README.md`](../patches/README.md), and the
-> operational consequence in
-> [`../03-motion-ioc/README.md`](../03-motion-ioc/README.md) §9.
+> Full diagnosis in the header comment of
+> [`make-demo-branch.sh`](make-demo-branch.sh), and the operational consequence
+> in [`../03-motion-ioc/README.md`](../03-motion-ioc/README.md) §9.
 
 ---
 

@@ -30,10 +30,10 @@ stage/
 
 # generated delivery patch (the repo itself is the source of truth)
 *.patch
-# ...but patches we MAINTAIN are content and must be tracked. Without these,
-# apply-patches.sh ships with nothing to apply.
+# ...but the ethercatmaster kernel-module patches are content and must be
+# tracked. ecmc's own build fixes are applied by make-demo-branch.sh instead
+# of a patch file -- see 00-bootstrap/make-demo-branch.sh.
 !ethercatmaster/patches/*.patch
-!patches/*.patch
 
 # scratch: build and bus output pasted in during a session
 error

@@ -114,7 +114,7 @@ to **810 scripts, 329 templates** with no collisions. Expect different numbers a
 ecmc 11.0.x references `motorLowLimitRO_` / `motorHighLimitRO_`, members of
 `asynMotorController` that exist only in an ESS/PSI motor fork. They are **not**
 in any released `epics-modules/motor`, including `R7-4` and `master`, so ecmc
-does not compile against upstream motor without a patch.
+does not compile against upstream motor as released.
 
 Neither direction of version change helps:
 
@@ -124,11 +124,11 @@ Neither direction of version change helps:
 | Older/newer ecmc | present in every tag `v11.0.0` … `v11.0.8`, and on `v11.0.9_RC1` |
 | ecmc 10.x | would avoid it, but loses `cpp_logic`, which phase 04 needs |
 
-The course applies `patches/0001-ecmc-guard-motorLimitRO.patch`, which adds the
-`#ifdef motorHighLimitROString` guard that ecmc's own
-`ecmcMotorRecordController.cpp` documents in a commented-out block. See
-[patches/README.md](patches/README.md) for the diagnosis and the behavioural
-consequence.
+`00-bootstrap/make-demo-branch.sh` rewrites `$ECMC_SRC` onto a `demo` branch
+from the pristine `v11.0.8` tag and adds the `#ifdef motorHighLimitROString`
+guard that ecmc's own `ecmcMotorRecordController.cpp` documents in a
+commented-out block, alongside the PCDS arch/path fixes. See the script's
+header comment for the full list of edits and the behavioural consequence.
 
-**When bumping ecmc**, re-check whether the patch still applies and whether it is
-still needed — upstream may have fixed it.
+**When bumping ecmc**, re-check whether the guard is still needed — upstream
+may have fixed it — and update `make-demo-branch.sh`'s anchors for the new tag.

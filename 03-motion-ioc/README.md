@@ -323,8 +323,9 @@ A reasonable convention is to make ecmc's limits equal to, or slightly wider
 than, the record's — so the record is what an operator normally meets, and ecmc
 is the backstop for anything that bypasses it.
 
-The full diagnosis of why the mirroring is unavailable, and the compile patch it
-made necessary, is in [`../patches/README.md`](../patches/README.md).
+The full diagnosis of why the mirroring is unavailable, and the compile fix it
+made necessary, is in the header comment of
+[`../00-bootstrap/make-demo-branch.sh`](../00-bootstrap/make-demo-branch.sh).
 
 ---
 

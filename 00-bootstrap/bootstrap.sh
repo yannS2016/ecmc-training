@@ -137,15 +137,17 @@ echo
 "$here/stage-ecmccomp.sh"
 
 # ---------------------------------------------------------------------------
-# 2b. patch the upstream checkouts
+# 2b. put $ECMC_SRC on the 'demo' branch with the PCDS build fixes applied
 #
-# Normally they are read-only. The exception is ecmc 11.0.x, which does not
-# compile against upstream motor. See ../patches/README.md.
+# Normally $ECMC_SRC is read-only. The exception is ecmc 11.0.x, which does
+# not compile against upstream motor as released, plus a few PCDS-specific
+# path/arch fixes. make-demo-branch.sh rewrites the checkout in place from
+# the pristine v11.0.8 tag every run, so it is always applying a known
+# starting state rather than a patch against whatever the tree happens to
+# already look like.
 # ---------------------------------------------------------------------------
-if [[ -d "$repo/patches" ]]; then
-  echo
-  "$here/apply-patches.sh"
-fi
+echo
+ECMC_SRC="$ECMC_SRC" "$here/make-demo-branch.sh"
 
 # ---------------------------------------------------------------------------
 # 3. build the IOC
