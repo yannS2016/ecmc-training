@@ -15,6 +15,9 @@ checkout — `ecmc` → `$ECMC_SRC`, `ecmccfg` → `$ECMCCFG_SRC`, and so on.
 
 Re-running is safe — an already-applied patch is detected and skipped.
 
+**`0005` is skipped by the script** (`SKIP_PATCHES` in `apply-patches.sh`) and applied by hand instead —
+see its section below for why, and for the exact manual steps.
+
 ---
 
 ## 0001-ecmc-guard-motorLimitRO.patch
@@ -311,6 +314,53 @@ came from typing a hunk out and counting its lines by eye.
 ---
 
 ## 0005-ecmc-thirdparty-link-order.patch
+
+**Skipped by `apply-patches.sh` — apply by hand.** It kept failing `--check` against
+intermediate states of this checkout as it was being developed against a real
+build, so for now it is documented here and applied manually rather than
+automated. The diagnosis below is accurate; only the delivery mechanism isn't
+automated yet.
+
+```bash
+sed -i 's/filter linux-%,/filter linux-% rhel%,/' \
+  "$ECMC_SRC"/devEcmcSup/Makefile \
+  "$ECMC_SRC"/ecmcExampleTop/ecmcIocApp/src/Makefile
+
+sed -i '/^USR_LDFLAGS.*+= -lethercat$/d' \
+  "$ECMC_SRC"/ecmcExampleTop/ecmcIocApp/src/Makefile
+sed -i 's/^USR_LDFLAGS += -L\$(RUCKIG)\/build -lruckig$/USR_LDFLAGS += -L$(RUCKIG)\/build/' \
+  "$ECMC_SRC"/ecmcExampleTop/ecmcIocApp/src/Makefile
+```
+
+Then edit `ecmcIoc_LIBS` in `ecmcExampleTop/ecmcIocApp/src/Makefile` by hand — change
+
+```make
+ecmcIoc_LIBS += asyn
+ecmcIoc_LIBS += ecmc
+ecmcIoc_LIBS += motor
+ecmcIoc_LIBS += exprtkSupport
+```
+
+to
+
+```make
+ecmcIoc_LIBS += ecmc
+ecmcIoc_LIBS += motor
+ecmcIoc_LIBS += exprtkSupport
+ecmcIoc_LIBS += asyn
+
+ecmcIoc_SYS_LIBS += ethercat
+ecmcIoc_SYS_LIBS += ruckig
+```
+
+Verify before building:
+
+```bash
+sed -n '10,60p' "$ECMC_SRC"/ecmcExampleTop/ecmcIocApp/src/Makefile
+```
+
+Check for: `rhel%` in the filter, no `-lethercat`/`-lruckig` left in `USR_LDFLAGS`,
+`_LIBS` ending in `asyn`, then the two `_SYS_LIBS` lines.
 
 **The other half of `0003`. Same defect, different mechanism.**
 

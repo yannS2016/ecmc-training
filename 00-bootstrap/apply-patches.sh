@@ -12,10 +12,15 @@
 #     0002-ecmc-arch-filter-rhel.patch      ->  $ECMC_SRC   non-linux-* arch name
 #     0003-ecmc-libs-link-order.patch       ->  $ECMC_SRC   link order: _LIBS
 #     0004-ecmc-site-module-paths.patch     ->  $ECMC_SRC   PCDS paths -- SITE-SPECIFIC
-#     0005-ecmc-thirdparty-link-order.patch ->  $ECMC_SRC   link order: USR_LDFLAGS
 #
 # 0004 is only correct for a site laying modules out under $PSPKG_ROOT. On any
 # other site, drop it and set the paths in configure/CONFIG_SITE.local instead.
+#
+# 0005-ecmc-thirdparty-link-order.patch is present in ../patches/ but SKIPPED
+# below -- see SKIP_PATCHES. It documents a real fix (USR_LDFLAGS link order
+# for ethercat/ruckig) but kept failing --check against intermediate states of
+# this checkout, so for now it is applied by hand instead. See its section in
+# ../patches/README.md before doing so.
 #
 # Safe to re-run: an already-applied patch is detected and skipped, not retried.
 #
@@ -52,6 +57,19 @@ fi
 
 n_applied=0 n_skipped=0 n_fail=0
 
+# Patches present in ../patches/ but not run automatically. See the header
+# comment above for why each is here.
+SKIP_PATCHES=(
+  0005-ecmc-thirdparty-link-order.patch
+)
+should_skip() {
+  local base="$1" s
+  for s in "${SKIP_PATCHES[@]}"; do
+    [[ "$base" == "$s" ]] && return 0
+  done
+  return 1
+}
+
 # Map a patch's <target> field to the checkout it belongs to.
 target_dir() {
   case "$1" in
@@ -65,6 +83,13 @@ target_dir() {
 shopt -s nullglob
 for p in "$patchdir"/*.patch; do
   base="$(basename "$p")"
+
+  if should_skip "$base"; then
+    printf '\n== %s -> SKIPPED ==\n    listed in SKIP_PATCHES; see the header comment above\n' "$base"
+    n_skipped=$((n_skipped + 1))
+    continue
+  fi
+
   # 0001-ecmc-guard-... -> ecmc
   target="$(printf '%s' "$base" | sed -E 's/^[0-9]+-([a-z]+)-.*/\1/')"
   dir="$(target_dir "$target")"
