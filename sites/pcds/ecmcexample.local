@@ -27,11 +27,14 @@
 #       BASE_MODULE_VERSION
 #       EPICS_MODULES
 # from one of the following options
--include $(TOP)/../../RELEASE_SITE
+#
+# One level deeper than ecmc.local: TOP here is $ECMC_SRC/ecmcExampleTop, an
+# embedded TOP, so it takes an extra ../ to reach the same RELEASE_SITE.
+-include $(TOP)/../../../RELEASE_SITE
 -include $(TOP)/RELEASE_SITE
 
 # Check that EPICS_MODULES was defined in a RELEASE_SITE file
--include $(TOP)/../../RELEASE_SITE.check
+-include $(TOP)/../../../RELEASE_SITE.check
 
 # When used as an embedded TOP
 ECMC = $(TOP)/..
@@ -55,4 +58,4 @@ endif
 EPICS_BASE              = $(EPICS_SITE_TOP)/base/$(BASE_MODULE_VERSION)
 
 # Check for undefined EPICS_BASE
--include $(TOP)/../../EPICS_BASE.check
+-include $(TOP)/../../../EPICS_BASE.check
