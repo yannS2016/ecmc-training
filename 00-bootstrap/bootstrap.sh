@@ -11,6 +11,11 @@
 # Everything it writes is derived from site.conf and is gitignored, so this
 # repository stays portable while your host paths stay yours.
 #
+# --site=<name> selects which sites/<name>/{ecmc.local,ecmcexample.local}
+# make-demo-branch.sh copies into $ECMC_SRC (step 2b). Defaults to the SITE
+# environment variable, or "pcds" if that is also unset. Only meaningful the
+# first time a site's RELEASE.local is created -- see make-demo-branch.sh.
+#
 # Safe to re-run.
 
 set -euo pipefail
@@ -25,9 +30,21 @@ if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
   exit 1
 fi
 
+SITE="${SITE:-pcds}"
+if [[ "${1:-}" == --site=* ]]; then
+  SITE="${1#--site=}"
+  shift
+fi
+
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
 app="$here/ecmcTrainingApp"
+
+if [[ ! -d "$repo/sites/$SITE" ]]; then
+  echo "ERROR: no such site: $repo/sites/$SITE" >&2
+  echo "       available: $(cd "$repo/sites" && echo */ | tr -d /)" >&2
+  exit 1
+fi
 
 if [[ ! -f "$repo/site.conf" ]]; then
   echo "ERROR: $repo/site.conf not found." >&2
@@ -150,9 +167,9 @@ echo
 # 2b. put $ECMC_SRC on the 'demo' branch with the PCDS build fixes applied
 #
 # Normally $ECMC_SRC is read-only. The exception is ecmc 11.0.x, which does
-# not compile against upstream motor as released, plus a few PCDS-specific
-# path/arch fixes -- including the real PCDS RELEASE.local (see
-# make-demo-branch.sh step 6 and ../sites/release.pcds.*.local) that keeps
+# not compile against upstream motor as released, plus a few site-specific
+# fixes -- including the real RELEASE.local for $SITE (see make-demo-branch.sh
+# step 6 and sites/$SITE/{ecmc.local,ecmcexample.local}) that keeps
 # checkRelease from rejecting the training IOC's build. make-demo-branch.sh
 # rewrites the checkout in place from the pristine v11.0.8 tag every run, so
 # it is always applying a known starting state rather than a patch against
@@ -160,10 +177,10 @@ echo
 # ---------------------------------------------------------------------------
 if [[ "$(git -C "$ECMC_SRC" branch --show-current 2>/dev/null)" == "demo" ]]; then
   echo "==> \$ECMC_SRC already on 'demo' -- skipping make-demo-branch.sh"
-  echo "    (re-run it yourself if you need to redo it: ECMC_SRC=$ECMC_SRC $here/make-demo-branch.sh)"
+  echo "    (re-run it yourself if you need to redo it: ECMC_SRC=$ECMC_SRC SITE=$SITE $here/make-demo-branch.sh)"
 else
   echo
-  ECMC_SRC="$ECMC_SRC" "$here/make-demo-branch.sh"
+  ECMC_SRC="$ECMC_SRC" SITE="$SITE" "$here/make-demo-branch.sh"
 fi
 
 # ---------------------------------------------------------------------------

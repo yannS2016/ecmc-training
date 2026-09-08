@@ -24,7 +24,12 @@
 # Run ON THE HOST where $ECMC_SRC is checked out:
 #
 #   export ECMC_SRC=/cds/group/pcds/epics/R7.0.3.1-2.0/modules/ecmc/R11.0.8
-#   bash 00-bootstrap/make-demo-branch.sh
+#   bash 00-bootstrap/make-demo-branch.sh [--site=<name>]
+#
+# --site selects which sites/<name>/{ecmc.local,ecmcexample.local} step 6
+# copies in. Defaults to the SITE environment variable, or "pcds" if that is
+# also unset -- so a plain run with no argument still does the right thing
+# for this course's primary site.
 #
 set -euo pipefail
 
@@ -36,6 +41,18 @@ fi
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
+
+SITE="${SITE:-pcds}"
+case "${1:-}" in
+  --site=*) SITE="${1#--site=}" ;;
+  "") ;;
+  *) echo "unknown option: $1" >&2; exit 2 ;;
+esac
+if [[ ! -d "$repo/sites/$SITE" ]]; then
+  echo "ERROR: no such site: $repo/sites/$SITE" >&2
+  echo "       available: $(cd "$repo/sites" && echo */ | tr -d /)" >&2
+  exit 1
+fi
 
 : "${ECMC_SRC:?export ECMC_SRC first}"
 cd "$ECMC_SRC"
@@ -297,24 +314,27 @@ replace_once ecmcExampleTop/ecmcIocApp/src/Makefile 05b-old.txt 05b-new.txt "5b/
 # 6. RELEASE.local -- one per app (ecmc itself, and ecmcExampleTop), created
 #    only if missing. Not committed.
 #
-# Copied verbatim from ../sites/, which carries the REAL PCDS RELEASE
-# convention (confirmed from an actual build log): a shared RELEASE_SITE
-# file supplies EPICS_SITE_TOP / BASE_MODULE_VERSION / EPICS_MODULES via
-# -include, and ASYN/MOTOR are built from $(EPICS_MODULES). This replaces an
-# earlier attempt that generated a raw `SUPPORT = ...` override here, based
-# on the upstream epics-modules/ecmc git tag content rather than what PCDS
-# actually runs -- that guess does not match this site's real convention.
+# Copied verbatim from ../sites/$SITE/, which carries the REAL RELEASE
+# convention for that site (PCDS's confirmed from an actual build log): a
+# shared RELEASE_SITE file supplies EPICS_SITE_TOP / BASE_MODULE_VERSION /
+# EPICS_MODULES via -include, and ASYN/MOTOR are built from
+# $(EPICS_MODULES). This replaces an earlier attempt that generated a raw
+# `SUPPORT = ...` override here, based on the upstream epics-modules/ecmc
+# git tag content rather than what PCDS actually runs -- that guess does not
+# match this site's real convention. A different site with a different
+# RELEASE convention gets its own sites/<name>/{ecmc.local,ecmcexample.local}
+# and --site=<name> selects it (see the header comment).
 #
 # The two files differ only in that ecmcexample's carries the extra
 # "ECMC = $(TOP)/.." block: ecmcExampleTop is an embedded TOP one level
 # under $ECMC_SRC, so it must point ECMC back at its parent explicitly.
 # ---------------------------------------------------------------------------
-for pair in ".:release.pcds.ecmc.local" "ecmcExampleTop:release.pcds.ecmcexample.local"; do
+for pair in ".:ecmc.local" "ecmcExampleTop:ecmcexample.local"; do
   d="${pair%%:*}"; src="${pair##*:}"
   f="$d/configure/RELEASE.local"
   if [[ ! -f "$f" ]]; then
-    cp "$repo/sites/$src" "$f"
-    echo "    [6/6] wrote $f from sites/$src (untracked)"
+    cp "$repo/sites/$SITE/$src" "$f"
+    echo "    [6/6] wrote $f from sites/$SITE/$src (untracked)"
   else
     echo "    [6/6] $f already exists -- left alone. Its content:"
     sed 's/^/         /' "$f"
@@ -344,9 +364,9 @@ git commit -q -m 'demo: PCDS build fixes for ecmc + ecmcExampleTop
   (a dependency of ecmc and motor) comes last, not first
 
 RELEASE.local (untracked, machine-local, created if missing) is copied
-from ../sites/release.pcds.*.local -- the real PCDS RELEASE_SITE
-convention, so checkRelease does not conflict with downstream apps
-built against this versioned module tree.'
+from ../sites/$SITE/*.local -- the real site RELEASE_SITE convention,
+so checkRelease does not conflict with downstream apps built against
+this versioned module tree.'
 
 echo
 echo "== done. On branch: $(git branch --show-current)"

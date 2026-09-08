@@ -30,10 +30,10 @@ hdr()  { printf '\n== %s ==\n' "$1"; }
 hdr "site configuration"
 if [[ ! -f "$repo/site.conf" ]]; then
   fail "site.conf not found"
-  if compgen -G "$repo/sites/*.conf" >/dev/null; then
+  if compgen -G "$repo/sites/*/site.conf" >/dev/null; then
     why "Start from a site profile if one matches this facility:"
-    for s in "$repo"/sites/*.conf; do
-      why "    cp sites/$(basename "$s") site.conf"
+    for s in "$repo"/sites/*/site.conf; do
+      why "    cp sites/$(basename "$(dirname "$s")")/site.conf site.conf"
     done
     why "Otherwise start from the generic template:"
   fi

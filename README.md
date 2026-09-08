@@ -39,17 +39,20 @@ For motion control specifically, add
 coordinated motion needs a bounded worst-case cycle, not just an average one.
 
 ```bash
-cp sites/pcds.conf site.conf       # or site.conf.example on your own hardware, then edit
+cp sites/pcds/site.conf site.conf  # or site.conf.example on your own hardware, then edit
 ./00-bootstrap/install-deps.sh     # OS packages for EPICS and the ecmc stack
 ./00-bootstrap/build-deps.sh       # source dependencies (ruckig), pinned in deps.conf
 ./00-bootstrap/preflight.sh        # must exit 0 before continuing
-./00-bootstrap/bootstrap.sh
+./00-bootstrap/bootstrap.sh        # add --site=<name> if you are not at PCDS (default: pcds)
 ```
 
-`site.conf` is gitignored, so each host keeps its own. `sites/` holds committed
-profiles for facilities that run this course repeatedly; `site.conf.example` is
-the generic template for anyone else. Every script reads `site.conf`, so it is
-the single place
+`site.conf` is gitignored, so each host keeps its own. `sites/<name>/` holds
+committed profiles for facilities that run this course repeatedly -- `site.conf`
+plus the `ecmc.local`/`ecmcexample.local` RELEASE.local templates
+`make-demo-branch.sh` needs; `site.conf.example` is the generic template for
+anyone else. `bootstrap.sh` and `make-demo-branch.sh` take `--site=<name>`
+(or the `SITE` environment variable) to pick which `sites/<name>/` to use,
+defaulting to `pcds`. Every script reads `site.conf`, so it is the single place
 where "where things live on this machine" is written down.
 
 ## Course structure
@@ -86,7 +89,8 @@ you should be able to explain by the end.
 
 ```
 site.conf.example      generic template: every key, documented, with placeholders
-sites/                 committed per-site profiles (pcds.conf, ...) — copy one to site.conf
+sites/<name>/           committed per-site profile: site.conf, ecmc.local, ecmcexample.local
+sites/pcds/             the PCDS profile — copy sites/pcds/site.conf to site.conf
 ethercatmaster/
   BUILD.md             why the EtherCAT master build is kernel-coupled
   INSTALL.md           installing it, command by command
