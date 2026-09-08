@@ -151,19 +151,19 @@ echo
 #
 # Normally $ECMC_SRC is read-only. The exception is ecmc 11.0.x, which does
 # not compile against upstream motor as released, plus a few PCDS-specific
-# path/arch fixes -- including the RELEASE.local SUPPORT override that keeps
-# checkRelease from rejecting the training IOC's build (see
-# make-demo-branch.sh step 6). make-demo-branch.sh rewrites the checkout in
-# place from the pristine v11.0.8 tag every run, so it is always applying a
-# known starting state rather than a patch against whatever the tree happens
-# to already look like.
+# path/arch fixes -- including the real PCDS RELEASE.local (see
+# make-demo-branch.sh step 6 and ../sites/release.pcds.*.local) that keeps
+# checkRelease from rejecting the training IOC's build. make-demo-branch.sh
+# rewrites the checkout in place from the pristine v11.0.8 tag every run, so
+# it is always applying a known starting state rather than a patch against
+# whatever the tree happens to already look like.
 # ---------------------------------------------------------------------------
 if [[ "$(git -C "$ECMC_SRC" branch --show-current 2>/dev/null)" == "demo" ]]; then
   echo "==> \$ECMC_SRC already on 'demo' -- skipping make-demo-branch.sh"
-  echo "    (re-run it yourself if you need to redo it: ECMC_SRC=$ECMC_SRC EPICS_MODULES=$EPICS_MODULES $here/make-demo-branch.sh)"
+  echo "    (re-run it yourself if you need to redo it: ECMC_SRC=$ECMC_SRC $here/make-demo-branch.sh)"
 else
   echo
-  ECMC_SRC="$ECMC_SRC" EPICS_MODULES="$EPICS_MODULES" "$here/make-demo-branch.sh"
+  ECMC_SRC="$ECMC_SRC" "$here/make-demo-branch.sh"
 fi
 
 # ---------------------------------------------------------------------------

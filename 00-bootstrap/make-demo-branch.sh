@@ -24,7 +24,6 @@
 # Run ON THE HOST where $ECMC_SRC is checked out:
 #
 #   export ECMC_SRC=/cds/group/pcds/epics/R7.0.3.1-2.0/modules/ecmc/R11.0.8
-#   export EPICS_MODULES=/cds/group/pcds/epics/R7.0.3.1-2.0/modules
 #   bash 00-bootstrap/make-demo-branch.sh
 #
 set -euo pipefail
@@ -35,8 +34,10 @@ if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
   exit 1
 fi
 
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo="$(cd "$here/.." && pwd)"
+
 : "${ECMC_SRC:?export ECMC_SRC first}"
-: "${EPICS_MODULES:?export EPICS_MODULES first}"
 cd "$ECMC_SRC"
 
 echo "== working in: $ECMC_SRC"
@@ -296,31 +297,24 @@ replace_once ecmcExampleTop/ecmcIocApp/src/Makefile 05b-old.txt 05b-new.txt "5b/
 # 6. RELEASE.local -- one per app (ecmc itself, and ecmcExampleTop), created
 #    only if missing. Not committed.
 #
-# SUPPORT is the load-bearing part: ecmc's and ecmcExampleTop's own
-# configure/RELEASE define it as $(TOP)/.. and $(TOP)/../.. respectively,
-# which assumes a FLAT module tree (SUPPORT/ecmc). PCDS trees are versioned
-# (SUPPORT/ecmc/R11.0.8), so those defaults land one directory short of
-# $EPICS_MODULES -- and EPICS's checkRelease compares the raw SUPPORT text
-# against every downstream app's own RELEASE, so a training-IOC build fails
-# with "Definition of SUPPORT conflicts with ECMC support" until this
-# override matches it exactly. RELEASE.local always wins over RELEASE, so
-# this is enough -- no edit to either checkout's own configure/RELEASE.
+# Copied verbatim from ../sites/, which carries the REAL PCDS RELEASE
+# convention (confirmed from an actual build log): a shared RELEASE_SITE
+# file supplies EPICS_SITE_TOP / BASE_MODULE_VERSION / EPICS_MODULES via
+# -include, and ASYN/MOTOR are built from $(EPICS_MODULES). This replaces an
+# earlier attempt that generated a raw `SUPPORT = ...` override here, based
+# on the upstream epics-modules/ecmc git tag content rather than what PCDS
+# actually runs -- that guess does not match this site's real convention.
 #
-# ETHERLAB/RUCKIG here are additionally belt-and-suspenders: CONFIG_SITE
-# already wins over the `?=` default in devEcmcSup/Makefile, so they are not
-# load-bearing today, but RELEASE.local is what keeps the build pointed at
-# the right place if inclusion order ever changes (a base upgrade, a
-# Makefile refactor).
+# The two files differ only in that ecmcexample's carries the extra
+# "ECMC = $(TOP)/.." block: ecmcExampleTop is an embedded TOP one level
+# under $ECMC_SRC, so it must point ECMC back at its parent explicitly.
 # ---------------------------------------------------------------------------
-for d in . ecmcExampleTop; do
+for pair in ".:release.pcds.ecmc.local" "ecmcExampleTop:release.pcds.ecmcexample.local"; do
+  d="${pair%%:*}"; src="${pair##*:}"
   f="$d/configure/RELEASE.local"
   if [[ ! -f "$f" ]]; then
-    cat > "$f" <<EOF
-SUPPORT = $EPICS_MODULES
-ETHERLAB = \$(PSPKG_ROOT)/etherlab
-RUCKIG = \$(PSPKG_ROOT)/ruckig/R0.19.4
-EOF
-    echo "    [6/6] wrote $f (untracked)"
+    cp "$repo/sites/$src" "$f"
+    echo "    [6/6] wrote $f from sites/$src (untracked)"
   else
     echo "    [6/6] $f already exists -- left alone. Its content:"
     sed 's/^/         /' "$f"
@@ -349,10 +343,10 @@ git commit -q -m 'demo: PCDS build fixes for ecmc + ecmcExampleTop
   after libecmc.a under STATIC_BUILD=YES; _LIBS order corrected so asyn
   (a dependency of ecmc and motor) comes last, not first
 
-RELEASE.local (untracked, machine-local, created if missing) overrides
-SUPPORT so checkRelease does not conflict with downstream apps built
-against a versioned module tree, and backs up ETHERLAB/RUCKIG for
-CONFIG_SITE in case build inclusion order ever changes.'
+RELEASE.local (untracked, machine-local, created if missing) is copied
+from ../sites/release.pcds.*.local -- the real PCDS RELEASE_SITE
+convention, so checkRelease does not conflict with downstream apps
+built against this versioned module tree.'
 
 echo
 echo "== done. On branch: $(git branch --show-current)"
