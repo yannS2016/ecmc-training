@@ -60,7 +60,13 @@ ecmcTrainingIoc_DBD += asyn.dbd
 ecmcTrainingIoc_DBD += motorSupport.dbd
 ecmcTrainingIoc_DBD += ECATtimestamp.dbd
 ecmcTrainingIoc_DBD += requireStub.dbd
-ecmcTrainingIoc_DBD += systemStub.dbd
+
+# The `system` iocsh command ecmccfg's startup.cmd calls (to create
+# ECMC_TMP_DIR) is NOT part of base.dbd -- it is its own dbd, registering
+# iocshSystemCommand from EPICS base's src/libCom/iocsh/libComRegister.c.
+# Any app that calls `system` from iocsh must add this explicitly, same as
+# asyn.dbd or motorSupport.dbd above; base.dbd alone does not pull it in.
+ecmcTrainingIoc_DBD += system.dbd
 
 ecmcTrainingIoc_LIBS += ecmc
 ecmcTrainingIoc_LIBS += motor
@@ -79,7 +85,6 @@ ecmcTrainingIoc_SYS_LIBS += ruckig
 ecmcTrainingIoc_SRCS += ecmcTrainingIoc_registerRecordDeviceDriver.cpp
 ecmcTrainingIoc_SRCS += ECATtimestamp.cpp
 ecmcTrainingIoc_SRCS += requireStub.cpp
-ecmcTrainingIoc_SRCS += systemStub.cpp
 
 ecmcTrainingIoc_SRCS_DEFAULT += ecmcTrainingMain.cpp
 ecmcTrainingIoc_SRCS_vxWorks += -nil-
