@@ -263,6 +263,19 @@ $comp_line
 # Templates are loaded by bare filename, so every directory holding one must
 # be on this path.
 epicsEnvSet("EPICS_DB_INCLUDE_PATH", "$db_path")
+
+# ecmccfg's own startup.cmd references \${ECmasterECMC_DIR} with NO default on
+# the line "\${ECMC_USE_ECmasterECMC_DIR}epicsEnvSet(ECMC_EC_TOOL_PATH, ...)".
+# macLib expands every macro on a line before iocsh looks at whether the
+# result starts with "#" (a comment) -- so even though the ternary above it
+# correctly resolves to "#-" (skip this line) when ECmasterECMC_DIR is unset,
+# expansion of the (soon to be commented-out) line still fails first with
+# "macro ECmasterECMC_DIR is undefined". Defining it to anything sidesteps
+# that; the value itself is moot -- the ternary still resolves to "#-" once
+# expansion succeeds, so the override line is skipped either way, and
+# ECMC_EC_TOOL_PATH keeps startup.cmd's own default (\$(EC_TOOL_PATH=
+# /opt/etherlab/bin/ethercat), which already matches this site's ETHERLAB).
+epicsEnvSet("ECmasterECMC_DIR",      "$ETHERLAB/")
 EOF
 }
 
