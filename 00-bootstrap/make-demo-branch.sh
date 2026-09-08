@@ -28,6 +28,12 @@
 #
 set -euo pipefail
 
+if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+  echo "ERROR: do not run this as root -- it creates root-owned files a normal" >&2
+  echo "       user then cannot clean up or overwrite. Only install-deps.sh needs sudo." >&2
+  exit 1
+fi
+
 : "${ECMC_SRC:?export ECMC_SRC first}"
 cd "$ECMC_SRC"
 

@@ -15,6 +15,16 @@
 
 set -euo pipefail
 
+if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+  echo "ERROR: do not run bootstrap.sh as root." >&2
+  echo "       Only install-deps.sh needs sudo (for 'dnf install'). Everything" >&2
+  echo "       else here -- stage/, RELEASE.local, the build -- should be owned" >&2
+  echo "       by the user who will run the IOC, or later steps (staging," >&2
+  echo "       building, make-demo-branch.sh) will silently create root-owned" >&2
+  echo "       files that a normal-user re-run then fails to remove or write." >&2
+  exit 1
+fi
+
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
 app="$here/ecmcTrainingApp"
