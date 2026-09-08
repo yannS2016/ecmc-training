@@ -1,7 +1,7 @@
 Subject: [PATCH] ecmcExampleTop: link ethercat and ruckig after libecmc
 
 `-lethercat` and `-lruckig` are added through `USR_LDFLAGS`, which EPICS emits
-*before* the object files and before the `_LIBS` module libraries:
+*before* the object files and before the `_LIBS`/`SYS_LIBS` flags:
 
     g++ -o ecmcIoc -Wl,-Bstatic ... -lethercat ... -lruckig ...
         ecmcIoc*.o -lecmc -lmotor -lexprtkSupport -lasyn ... -Wl,-Bdynamic ...
@@ -18,10 +18,17 @@ reaches `libecmc.a` -- which needs them:
 117 undefined references on this host, in exactly two families.
 
 This is the same defect 0003 fixed for asyn, but `_LIBS` cannot reach these two
-because they arrive via `USR_LDFLAGS`.  Moving the `-l` flags into `ecmcIoc_LIBS`
-places them inside the `-Wl,-Bstatic` region, after `-lecmc`, which is where a
-dependency of ecmc belongs.  The `-L` and `-Wl,-rpath` flags stay in
-`USR_LDFLAGS`: only `-l` position matters to archive resolution.
+the same way.  `ecmcIoc_LIBS` tells EPICS "this is an EPICS-module library" and
+it searches for it under this application's own `lib/<T_A>/` tree -- where
+`libecmc.a` lives and `libethercat.a`/`libruckig.a` never will:
+
+    make: *** No rule to make target '../../../lib/rhel9-x86_64/libethercat.a'
+
+`ecmcIoc_SYS_LIBS` is the right list for a library that already has its own
+`-L`: EPICS simply emits `-l<name>`, with no search, placed after
+`-Wl,-Bdynamic` -- still after `-lecmc`, which is what resolves the undefined
+references.  The `-L` and `-Wl,-rpath` flags stay in `USR_LDFLAGS`, unchanged:
+only `-l` position matters to archive resolution.
 
 Two details the file dictates, both easy to miss:
 
@@ -38,16 +45,11 @@ the failure.  Worth reporting upstream.
 Depends on 0003 having reordered `_LIBS`; `apply-patches.sh` applies them in
 numeric order, so the context here is the file with 0002 and 0003 already in.
 
-If EPICS rejects a non-EPICS name in `_LIBS`, the fallback is
-`ecmcIoc_SYS_LIBS`, emitted after `-Wl,-Bdynamic`: EPICS libraries stay static
-and these two link dynamically through the rpaths already on the line.  That
-also works and costs only the fully-self-contained binary.
-
 Applies to: ecmc v11.0.8, after 0002 and 0003
 Verified on: EPICS base R7.0.3.1-2.0, STATIC_BUILD=YES, rhel9-x86_64
 ---
- ecmcExampleTop/ecmcIocApp/src/Makefile | 6 +++---
- 1 file changed, 3 insertions(+), 3 deletions(-)
+ ecmcExampleTop/ecmcIocApp/src/Makefile | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
 
 diff --git a/ecmcExampleTop/ecmcIocApp/src/Makefile b/ecmcExampleTop/ecmcIocApp/src/Makefile
 --- a/ecmcExampleTop/ecmcIocApp/src/Makefile
@@ -72,12 +74,20 @@ diff --git a/ecmcExampleTop/ecmcIocApp/src/Makefile b/ecmcExampleTop/ecmcIocApp/
  USR_LDFLAGS += -Wl,-rpath,'$(RUCKIG)/build'
  
  # ecmcioc.dbd will be created and installed
-@@ -52,6 +50,8 @@
+@@ -50,8 +50,14 @@
  ecmcIoc_LIBS += motor
  ecmcIoc_LIBS += exprtkSupport
  ecmcIoc_LIBS += asyn
-+ecmcIoc_LIBS += ethercat
-+ecmcIoc_LIBS += ruckig
+-ecmcIoc_LIBS += ethercat
+-ecmcIoc_LIBS += ruckig
++
++# Not ecmcIoc_LIBS: that tells EPICS to look for an EPICS-module library
++# under this application's own lib/<T_A>/ tree, which is where libecmc.a
++# lives and libethercat.a/libruckig.a never will. SYS_LIBS just emits
++# -l<name> without that search, and EPICS places it after -Wl,-Bdynamic --
++# still after -lecmc, still resolving the same undefined references.
++ecmcIoc_SYS_LIBS += ethercat
++ecmcIoc_SYS_LIBS += ruckig
  
  ecmcIoc_SRCS += ecmcIoc_registerRecordDeviceDriver.cpp
  

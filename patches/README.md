@@ -334,10 +334,25 @@ g++ -o ecmcIoc -Wl,-Bstatic ... -lethercat ... -lruckig ...
     ecmcIoc*.o -lecmc -lmotor -lexprtkSupport -lasyn ... -Wl,-Bdynamic ...
 ```
 
-Moving the `-l` flags into `ecmcIoc_LIBS` puts them inside the `-Wl,-Bstatic`
-region *after* `-lecmc`, which is where a dependency of ecmc belongs. The `-L`
-and `-Wl,-rpath` flags stay in `USR_LDFLAGS` — only `-l` position matters to
-archive resolution.
+### Why `ecmcIoc_LIBS` is the wrong destination too
+
+The first attempt at this patch moved the two `-l` flags into `ecmcIoc_LIBS`,
+next to `asyn`/`motor`/`exprtkSupport`. That fails differently:
+
+```
+make: *** No rule to make target '../../../lib/rhel9-x86_64/libethercat.a', needed by 'ecmcIoc'.
+```
+
+`ecmcIoc_LIBS` tells EPICS "this is an EPICS-module library," and it searches
+for it under *this application's own* `lib/<T_A>/` tree — where `libecmc.a`
+lives and `libethercat.a`/`libruckig.a` never will, because they are external
+archives found through `-L`, not modules this application builds.
+
+`ecmcIoc_SYS_LIBS` is the correct list for exactly that case: a library that
+already supplies its own `-L`. EPICS simply emits `-l<name>` with no search,
+placed after `-Wl,-Bdynamic` — still after `-lecmc`, which is what resolves the
+undefined references. The `-L` and `-Wl,-rpath` flags stay in `USR_LDFLAGS`,
+untouched: only `-l` position matters to archive resolution.
 
 ### Two details the file dictates
 
@@ -351,22 +366,14 @@ archive resolution.
 
 `apply-patches.sh` applies patches in numeric order to one working tree, so this
 patch's context is the file with `0002` and `0003` already applied. That is not
-incidental — `0003` rewrote the `_LIBS` block this one appends to.
+incidental — `0003` rewrote the `_LIBS` block this one appends after.
 
-### If EPICS rejects a non-EPICS name in `_LIBS`
-
-`_LIBS` is EPICS's mechanism for EPICS-built libraries; third-party entries work
-because EPICS simply emits `-l<name>` and the `-L` is already supplied. If your
-base instead tries to resolve them as module dependencies, use
-`ecmcIoc_SYS_LIBS` — emitted after `-Wl,-Bdynamic`, so EPICS libraries stay
-static while these two link dynamically through the rpaths already present. That
-works too, and costs only the fully-self-contained binary.
-
-Verify which you got:
+### Verify
 
 ```bash
 ldd bin/rhel9-x86_64/ecmcIoc | grep -E 'ethercat|ruckig'
 ```
 
-Nothing printed means fully static. Two lines means the `SYS_LIBS` outcome, which
-is fine as long as the rpaths resolve.
+Two lines, each resolving to the real `.so` through the rpath already on the
+link line. `libethercat.a`/`libruckig.a` are never involved for these two —
+only `-lecmc`, `-lmotor` etc. are static.
