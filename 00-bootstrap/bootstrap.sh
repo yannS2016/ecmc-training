@@ -231,8 +231,8 @@ fi
 db_path="$STAGE/db"
 db_path="$db_path:$ECMC_SRC/devEcmcSup/logic/db"   # cpp_logic templates (phase 04)
 [[ -d "$comp_stage/db" ]] && db_path="$db_path:$comp_stage/db"
-db_path="$db_path:$EPICS_MODULES/motor/db"
-db_path="$db_path:$EPICS_MODULES/asyn/db"
+db_path="$db_path:$(module_dir motor)/db"
+db_path="$db_path:$(module_dir asyn)/db"
 db_path="$db_path:$EPICS_BASE/db"
 
 write_paths_file() {
@@ -246,7 +246,7 @@ write_paths_file() {
 # concatenation, e.g. \${ecmccfg_DIR}addSlave.cmd
 epicsEnvSet("ecmccfg_DIR",           "$STAGE/")
 epicsEnvSet("ecmccfg_DB",            "$STAGE/db")
-epicsEnvSet("ecmc_DIR",              "$EPICS_MODULES/ecmc")
+epicsEnvSet("ecmc_DIR",              "$(module_dir ecmc)")
 $comp_line
 
 # Templates are loaded by bare filename, so every directory holding one must
