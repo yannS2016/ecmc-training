@@ -112,7 +112,11 @@ ASYN_MODULE_VERSION  = ${ASYN_MODULE_VERSION:-}
 MOTOR_MODULE_VERSION = ${MOTOR_MODULE_VERSION:-}
 ECMC_MODULE_VERSION  = ${ECMC_MODULE_VERSION:-}
 
-SUPPORT    = $EPICS_MODULES
+# No SUPPORT here: ASYN/MOTOR/ECMC below are absolute paths already, and
+# checkRelease compares SUPPORT's raw text across every RELEASE file it
+# walks -- defining it here just to have it collide with whatever ecmc's
+# own configure/RELEASE happens to say (e.g. "SUPPORT = $(TOP)/..").
+# Leaving it undefined here means there is nothing to conflict.
 
 ASYN       = $(module_dir asyn)
 MOTOR      = $(module_dir motor)
