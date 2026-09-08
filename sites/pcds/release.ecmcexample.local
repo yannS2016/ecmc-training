@@ -36,6 +36,11 @@
 # Check that EPICS_MODULES was defined in a RELEASE_SITE file
 -include $(TOP)/../../../RELEASE_SITE.check
 
+# Explicit, so checkRelease sees the same SUPPORT text as every downstream
+# app's RELEASE instead of falling through to this file's own default of
+# $(TOP)/../.. -- which lands one directory short on a versioned module tree.
+SUPPORT = $(EPICS_MODULES)
+
 # When used as an embedded TOP
 ECMC = $(TOP)/..
 

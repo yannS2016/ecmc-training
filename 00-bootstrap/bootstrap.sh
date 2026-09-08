@@ -112,11 +112,13 @@ ASYN_MODULE_VERSION  = ${ASYN_MODULE_VERSION:-}
 MOTOR_MODULE_VERSION = ${MOTOR_MODULE_VERSION:-}
 ECMC_MODULE_VERSION  = ${ECMC_MODULE_VERSION:-}
 
-# No SUPPORT here: ASYN/MOTOR/ECMC below are absolute paths already, and
-# checkRelease compares SUPPORT's raw text across every RELEASE file it
-# walks -- defining it here just to have it collide with whatever ecmc's
-# own configure/RELEASE happens to say (e.g. "SUPPORT = $(TOP)/..").
-# Leaving it undefined here means there is nothing to conflict.
+# SUPPORT must match ecmc's own definition exactly: checkRelease compares
+# SUPPORT's expanded text across every RELEASE file it walks, and flags a
+# mismatch as a conflict even when both resolve to the same real directory.
+# sites/$SITE/release.ecmc.local (see make-demo-branch.sh) sets ecmc's
+# SUPPORT to \$(EPICS_MODULES), which is this same absolute path -- keep
+# the two in sync if either changes.
+SUPPORT    = $EPICS_MODULES
 
 ASYN       = $(module_dir asyn)
 MOTOR      = $(module_dir motor)
