@@ -15,8 +15,10 @@ checkout — `ecmc` → `$ECMC_SRC`, `ecmccfg` → `$ECMCCFG_SRC`, and so on.
 
 Re-running is safe — an already-applied patch is detected and skipped.
 
-**`0005` is skipped by the script** (`SKIP_PATCHES` in `apply-patches.sh`) and applied by hand instead —
-see its section below for why, and for the exact manual steps.
+**`0003` and `0005` are skipped by the script** (`SKIP_PATCHES` in `apply-patches.sh`) and applied by
+hand instead, as one combined edit — see the `0005` section below for why and for the exact steps.
+Both touch the same `_LIBS` block in `ecmcExampleTop/ecmcIocApp/src/Makefile`; the manual steps do both
+at once, so running `0003` afterward finds its expected "before" text already changed and fails.
 
 ---
 

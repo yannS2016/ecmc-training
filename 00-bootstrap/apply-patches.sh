@@ -10,17 +10,18 @@
 #
 #     0001-ecmc-guard-motorLimitRO.patch    ->  $ECMC_SRC   compile fix
 #     0002-ecmc-arch-filter-rhel.patch      ->  $ECMC_SRC   non-linux-* arch name
-#     0003-ecmc-libs-link-order.patch       ->  $ECMC_SRC   link order: _LIBS
 #     0004-ecmc-site-module-paths.patch     ->  $ECMC_SRC   PCDS paths -- SITE-SPECIFIC
 #
 # 0004 is only correct for a site laying modules out under $PSPKG_ROOT. On any
 # other site, drop it and set the paths in configure/CONFIG_SITE.local instead.
 #
-# 0005-ecmc-thirdparty-link-order.patch is present in ../patches/ but SKIPPED
-# below -- see SKIP_PATCHES. It documents a real fix (USR_LDFLAGS link order
-# for ethercat/ruckig) but kept failing --check against intermediate states of
-# this checkout, so for now it is applied by hand instead. See its section in
-# ../patches/README.md before doing so.
+# 0003-ecmc-libs-link-order.patch and 0005-ecmc-thirdparty-link-order.patch are
+# present in ../patches/ but SKIPPED below -- see SKIP_PATCHES. Both touch the
+# same _LIBS block in ecmcExampleTop/ecmcIocApp/src/Makefile, and 0005's manual
+# steps (README.md) fold 0003's reordering in directly, so applying 0005 by
+# hand leaves the file in a state 0003 no longer recognises as its "before".
+# Apply that one block by hand per the 0005 section in ../patches/README.md,
+# which supersedes 0003 for this file.
 #
 # Safe to re-run: an already-applied patch is detected and skipped, not retried.
 #
@@ -60,6 +61,7 @@ n_applied=0 n_skipped=0 n_fail=0
 # Patches present in ../patches/ but not run automatically. See the header
 # comment above for why each is here.
 SKIP_PATCHES=(
+  0003-ecmc-libs-link-order.patch
   0005-ecmc-thirdparty-link-order.patch
 )
 should_skip() {
