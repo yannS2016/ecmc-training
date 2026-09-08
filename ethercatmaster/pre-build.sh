@@ -18,6 +18,7 @@
 #   ./pre-build.sh --patches /some/dir   # only if this script was copied away
 #                                        # from its own patches/ directory
 #   EC_SRC=/path/to/ethercat ./pre-build.sh
+#   E1000E_KERNEL=6.12 ./pre-build.sh    # probe a non-default --with-e1000e-kernel
 #
 # Without --apply this script is strictly read-only. With it, the only thing it
 # writes is `git apply` of a patch from patches/ into the ethercat checkout,
@@ -244,7 +245,27 @@ if [[ $have_src -eq 1 && -n "$LV" ]]; then
       warn "$1 not available for $LV"
     fi
   }
-  chk e1000e "ls $D/e1000e/netdev-$LV-*.c >/dev/null 2>&1"
+  # E1000E_KERNEL overrides which devices/e1000e/netdev-<ver>-*.c snapshot to
+  # test for, e.g. E1000E_KERNEL=6.12 ./pre-build.sh -- matching
+  # --with-e1000e-kernel=<ver> at configure time. Defaults to the running
+  # kernel's own $LV, same as configure.ac does when the flag is omitted.
+  #
+  # This is a FILENAME MATCH, same as configure.ac itself, and proves nothing
+  # about whether the code compiles. That caveat matters MORE here than for
+  # the default case: no file in devices/e1000e/, at ANY shipped version, has
+  # a single LINUX_VERSION_CODE guard (verified across the full 3.2-6.12
+  # range). So picking a non-default version is not "the guarded branch of
+  # this driver" -- it swaps in a wholesale different, equally unguarded
+  # driver snapshot (every module: netdev, ethtool, mac, hw, nvm, phy, ptp...)
+  # forked from a different point in mainline. A pass here is not a signal
+  # that override will compile against this kernel; only `make` can tell you
+  # that. See BUILD.md section 5 and INSTALL.md section 9.
+  E1000E_KERNEL="${E1000E_KERNEL:-$LV}"
+  if [[ "$E1000E_KERNEL" != "$LV" ]]; then
+    why  "E1000E_KERNEL=$E1000E_KERNEL overrides the running kernel ($LV)."
+    why  "A pass below is a filename match only -- see BUILD.md section 5."
+  fi
+  chk e1000e "ls $D/e1000e/netdev-$E1000E_KERNEL-*.c >/dev/null 2>&1"
   chk igb    "test -f $D/igb/igb_main-$LV-orig.c"
   chk igc    "test -f $D/igc/igc_main-$LV-orig.c"
   # Two globs in one `ls` would fail whenever EITHER is absent, so test both
