@@ -8,12 +8,15 @@ ecmcPaths.cmd
 configure/CONFIG_SITE.local
 **/configure/CONFIG_SITE.local
 
-# EPICS build output
-bin/
-lib/
-dbd/
-db/
-include/
+# EPICS build output.
+# ANCHORED to the application directory on purpose. Unanchored "db/" matches at
+# any depth, which silently swallows hand-written templates in a phase's own
+# db/ directory -- content, not build output.
+00-bootstrap/ecmcTrainingApp/bin/
+00-bootstrap/ecmcTrainingApp/lib/
+00-bootstrap/ecmcTrainingApp/dbd/
+00-bootstrap/ecmcTrainingApp/db/
+00-bootstrap/ecmcTrainingApp/include/
 O.*/
 envPaths
 
@@ -27,8 +30,10 @@ stage/
 
 # generated delivery patch (the repo itself is the source of truth)
 *.patch
-# ...but compatibility patches for the EtherCAT master ARE tracked:
+# ...but patches we MAINTAIN are content and must be tracked. Without these,
+# apply-patches.sh ships with nothing to apply.
 !ethercatmaster/patches/*.patch
+!patches/*.patch
 
 # scratch: build and bus output pasted in during a session
 error
