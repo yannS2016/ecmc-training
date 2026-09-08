@@ -108,3 +108,27 @@ constraint only ever applied to a Windows browsing clone.
 For reference, the 2024-era `ecmccfg` this course was first drafted against staged
 to **810 scripts, 329 templates** with no collisions. Expect different numbers at
 `11.0.8`; changed counts are fine, a collision failure is not.
+
+## Known incompatibility: ecmc 11.0.x vs upstream motor
+
+ecmc 11.0.x references `motorLowLimitRO_` / `motorHighLimitRO_`, members of
+`asynMotorController` that exist only in an ESS/PSI motor fork. They are **not**
+in any released `epics-modules/motor`, including `R7-4` and `master`, so ecmc
+does not compile against upstream motor without a patch.
+
+Neither direction of version change helps:
+
+| | |
+|---|---|
+| Newer motor | no upstream release has the symbols |
+| Older/newer ecmc | present in every tag `v11.0.0` … `v11.0.8`, and on `v11.0.9_RC1` |
+| ecmc 10.x | would avoid it, but loses `cpp_logic`, which phase 04 needs |
+
+The course applies `patches/0001-ecmc-guard-motorLimitRO.patch`, which adds the
+`#ifdef motorHighLimitROString` guard that ecmc's own
+`ecmcMotorRecordController.cpp` documents in a commented-out block. See
+[patches/README.md](patches/README.md) for the diagnosis and the behavioural
+consequence.
+
+**When bumping ecmc**, re-check whether the patch still applies and whether it is
+still needed — upstream may have fixed it.

@@ -137,6 +137,17 @@ echo
 "$here/stage-ecmccomp.sh"
 
 # ---------------------------------------------------------------------------
+# 2b. patch the upstream checkouts
+#
+# Normally they are read-only. The exception is ecmc 11.0.x, which does not
+# compile against upstream motor. See ../patches/README.md.
+# ---------------------------------------------------------------------------
+if [[ -d "$repo/patches" ]]; then
+  echo
+  "$here/apply-patches.sh"
+fi
+
+# ---------------------------------------------------------------------------
 # 3. build the IOC
 # ---------------------------------------------------------------------------
 echo "==> building the training IOC"

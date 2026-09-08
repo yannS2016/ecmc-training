@@ -94,6 +94,7 @@ ethercatmaster/
 00-bootstrap/
   MODULES.md           what each EPICS module is, why ecmc needs it, how it is configured
   install-deps.sh      OS packages (compiler, perl, readline, libtirpc, cmake, python)
+  apply-patches.sh     apply patches/ to the upstream checkouts
   deps.conf            source dependencies and their pinned versions
   build-deps.sh        fetch and build them into $DEPS_DIR/<package>/RX.Y.Z
   deps-lib.sh          shared path lookup, so nothing hardcodes a dep path
@@ -118,6 +119,7 @@ ethercatmaster/
   cfg/02-closedloop.yaml stage 2: BiSS-C absolute scale as primary encoder
   cfg/enc-openloop.yaml  stage 2: the CSP drive encoder, loaded second
 04-advanced/, 99-assessment/   planned, not yet written
+patches/               the one place upstream checkouts are modified, with reasons
 appendix-require.md    what `require` is and why we do not use it
 ```
 

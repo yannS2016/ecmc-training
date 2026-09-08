@@ -158,6 +158,25 @@ build, comment it out of `configure/RELEASE` — ecmc needs none of them.
 
 **Provides to the IOC.** `motorSupport.dbd`, `libmotor`.
 
+> ### ecmc 11.0.x does not compile against upstream motor
+>
+> ecmc uses `motorLowLimitRO_` and `motorHighLimitRO_`, which exist only in an
+> ESS/PSI motor fork — **not in any released `epics-modules/motor`**, including
+> `R7-4` and `master`. Unpatched, the build fails with six
+> `no member named 'motorLowLimitRO_'` errors.
+>
+> No motor version fixes this, and no ecmc 11.x version avoids it. The course
+> ships a one-hunk patch adding the `#ifdef motorHighLimitROString` guard that
+> ecmc's own controller file already documents:
+>
+> ```bash
+> ./00-bootstrap/apply-patches.sh
+> ```
+>
+> `bootstrap.sh` runs it automatically and `preflight.sh` fails loudly if it is
+> missing. Full diagnosis, and what behaviour you lose on upstream motor, in
+> [`../patches/README.md`](../patches/README.md).
+
 ---
 
 ## 6. exprtkSupport

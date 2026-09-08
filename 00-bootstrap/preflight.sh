@@ -162,6 +162,23 @@ if [[ -d "${ECMC_SRC:-}" ]]; then
     warn "no devEcmcSup/logic/db -- this ecmc predates cpp_logic (11.0.7+)"
     why  "Phase 04 cpp_logic exercises will not be available."
   fi
+
+  # ecmc 11.0.x uses motorLowLimitRO_ / motorHighLimitRO_, which exist only in an
+  # ESS/PSI motor fork -- not in any upstream epics-modules/motor release. Left
+  # unpatched the build dies with six confusing "no member named" errors. Catch
+  # it here instead. See ../patches/README.md.
+  mr_axis="$ECMC_SRC/devEcmcSup/motor/ecmcMotorRecordAxis.cpp"
+  if [[ -f "$mr_axis" ]]; then
+    if grep -q "motorLowLimitRO_" "$mr_axis" 2>/dev/null \
+       && ! grep -q "motorHighLimitROString" "$mr_axis" 2>/dev/null; then
+      fail "ecmc uses motorLowLimitRO_ without a motorHighLimitROString guard"
+      why  "It will not compile against upstream motor. Apply the course patch:"
+      why  "    ./00-bootstrap/apply-patches.sh"
+      why  "Full diagnosis in patches/README.md."
+    else
+      pass "ecmc motor-record soft-limit guard in place"
+    fi
+  fi
 else
   fail "ECMC_SRC '${ECMC_SRC:-<unset>}' does not exist"
 fi
