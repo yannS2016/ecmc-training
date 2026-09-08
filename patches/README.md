@@ -42,7 +42,7 @@ Neither upgrading nor downgrading helps:
 - Every ecmc tag from `v11.0.0` through `v11.0.8` uses them, and so does
   `v11.0.9_RC1`. Dropping to 10.x would lose `cpp_logic`, which phase 04 needs.
 
-### The fix, which ecmc itself documents
+### The fix, confirmed by EthercatMC
 
 `devEcmcSup/motor/ecmcMotorRecordController.cpp` carries the same code commented
 out, and the commented block preserves the guard it was written with:
@@ -61,21 +61,56 @@ still carrying its WIP label.
 This patch adds that guard. Where the forked motor is present the macro is
 defined, the code compiles as before, and behaviour is unchanged.
 
+**EthercatMC confirms this is the intended pattern rather than something we
+invented.** It is the TwinCAT-ADS driver from the same lineage, already used at
+PCDS, and it does exactly the same thing — `EthercatMCApp/src/EthercatMCAxis.cpp:292`:
+
+```c
+#ifdef motorHighLimitROString
+  setDoubleParam(pC_->motorHighLimitRO_, fValueHigh / scaleFactor);
+  setDoubleParam(pC_->motorLowLimitRO_,  fValueLow  / scaleFactor);
+#endif
+```
+
+Those three lines are the *only* place in EthercatMC's entire `src/` tree that
+touches a motor-record limit field, and EthercatMC ships no motor patch of its
+own. It compiles on this site's motor precisely because it is guarded; ecmc
+failed only because it is not.
+
 ### What you lose on upstream motor
 
-Small but real, and worth knowing before you debug something that is working as
-designed:
+**Nothing that worked before.** The guarded-out code was writing into parameters
+that do not exist on this motor, so it was never reaching the motor record
+anyway. An earlier version of this file claimed startup seeding still worked;
+that was wrong, and the reason is worth stating because it is easy to assume
+otherwise:
 
-- **`syncMotorSoftLimits()`** — the `if (force)` branch still writes the ordinary
-  `motorLowLimit_` / `motorHighLimit_`, so the motor record's `DLLM` / `DHLM` are
-  still **seeded at startup**. Only the continuous non-forced publication is lost.
-- **`readBackSoftLimits()`** — the `if (updateMotor)` block becomes a no-op. The
-  ecmc-side parameters above it are set unconditionally, so ecmc's own
-  **`-CfgDLLM` / `-CfgDHLM` PVs still track correctly**.
+> Upstream `motor` has **no driver→record path for limit values at all**.
+> `devMotorAsyn.c` registers an interrupt only for `motorStatus`, and
+> `update_values()` touches only `rmp`, `rep`, `msta`, `rvel`. A driver calling
+> `setDoubleParam(motorLowLimit_, …)` updates the driver's own parameter cache
+> and stops there.
 
-Net: motor-record soft limits are seeded at startup but do not follow ecmc
-soft-limit changes made at runtime. **The limits themselves are still enforced
-inside ecmc** — this only concerns mirroring them into the motor record.
+So what the RO parameters offer is an **optional convenience** — mirroring ecmc's
+soft limits into `.DHLM` / `.DLLM` — available only to sites running the forked
+motor. It is not expected behaviour, and its absence is not a defect.
+`.DLLM`/`.DHLM` are user-settable motor record fields; the user or autosave sets
+them and motorRecord enforces them.
+
+Unaffected by this patch, and working normally:
+
+- **Hard limit switches.** `LLS`/`HLS` in `MSTA` come from
+  `motorStatusLowLimit_` / `motorStatusHighLimit_`, carried in the `MotorStatus`
+  struct that `devMotorAsyn.c` *does* subscribe to. ecmc sets them every poll at
+  `ecmcMotorRecordAxis.cpp:1980-1985`.
+- **ecmc's own soft limits.** Enforced in the realtime cycle, and visible on the
+  `-CfgDLLM` / `-CfgDHLM` PVs in both directions.
+- **motorRecord's soft limits.** `.DLLM`/`.DHLM` enforced before a move is
+  issued, with `LVIO` on violation.
+
+The one consequence to be aware of is that those last two are **independent** on
+this motor — changing one does not change the other. See
+[`../03-motion-ioc/README.md`](../03-motion-ioc/README.md) §9.
 
 ### Upstream
 

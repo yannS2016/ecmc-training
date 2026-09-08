@@ -280,7 +280,55 @@ limit". If the axis refuses to move in both directions, that is what happened.
 
 ---
 
-## 9. When it will not move
+## 9. Limits: three things with similar names
+
+Easy to conflate, and they behave differently.
+
+| | What it is | Who sets it | Who enforces it |
+|---|---|---|---|
+| `LLS` / `HLS` in `MSTA` | hard limit **switch state** | the drive, from the wired input | reported to the record; motorRecord refuses to keep driving into an active switch |
+| `.DLLM` / `.DHLM` (dial), `.LLM` / `.HLM` (user) | soft limit **values** | **you**, or autosave | motorRecord, before it issues a move (sets `LVIO`) |
+| ecmc `softlimits:` | soft limit **values** | axis YAML, or `-CfgDLLM` / `-CfgDHLM` | ecmc, inside the realtime cycle |
+
+`LLS`/`HLS` are driver-driven and work normally — ecmc sets
+`motorStatusLowLimit_` / `motorStatusHighLimit_` from the drive's status word
+every poll, exactly as the TwinCAT-ADS driver EthercatMC does.
+
+The two **soft** limit layers are the ones to be careful about.
+
+### They are independent on this motor
+
+`.DLLM`/`.DHLM` are ordinary user-settable motor record fields. ecmc *can*
+mirror its own soft limits into them, but only when built against a motor that
+provides `motorLowLimitRO_` / `motorHighLimitRO_` and `motorFlagsRwSoftLimits`.
+Those exist in an ESS/PSI motor fork, not in any released
+`epics-modules/motor`, so on this site the two layers **do not talk to each
+other in either direction**.
+
+That is not a fault. It is defence in depth:
+
+- **motorRecord limits what can be *requested*.** Set `.DLLM`/`.DHLM`, let
+  autosave restore them, archive them. This is the operator-facing limit and the
+  interface UIs and scripts should use.
+- **ecmc limits what can be *executed*.** The YAML `softlimits:` block is
+  enforced in the realtime cycle, including for motion commanded from a PLC
+  expression that never touches the motor record.
+
+**The trap:** changing one does not change the other. Set both, keep them
+consistent, and when someone reports "I raised the limit and it still stops",
+check which layer stopped it. `-CfgDHLM-RB` shows ecmc's current value;
+`.DHLM` shows the record's.
+
+A reasonable convention is to make ecmc's limits equal to, or slightly wider
+than, the record's — so the record is what an operator normally meets, and ecmc
+is the backstop for anything that bypasses it.
+
+The full diagnosis of why the mirroring is unavailable, and the compile patch it
+made necessary, is in [`../patches/README.md`](../patches/README.md).
+
+---
+
+## 10. When it will not move
 
 | Symptom | Cause |
 |---|---|
@@ -292,6 +340,8 @@ limit". If the axis refuses to move in both directions, that is what happened.
 | Axis never settles, hunts | the two encoder frames disagree — check `useAsCSPDrvEnc` and `refToEncIDAtStartup` |
 | Moves 256× too far | scaling: microsteps per rev is not what you assumed |
 | Position right at power-on but wrong absolute | `absOffset` not derived for your stage (§5) |
+| Raised `.DHLM` but the axis still stops short | ecmc's own soft limit stopped it; the two layers are independent (§9). Check `M1-CfgDHLM-RB` |
+| Raised `-CfgDHLM` but the move is refused before it starts | motorRecord's `.DHLM` stopped it; `.LVIO` will be 1 (§9) |
 
 Start at `M1-ErrId`; `ecmcReport 3` dumps the object tree.
 
@@ -311,9 +361,15 @@ Start at `M1-ErrId`; `ecmcReport 3` dumps the object tree.
    then until it buzzes; back off. Add `Ki` until steady-state error disappears.
 5. **Provoke a stall.** Stage 1, gently stop the shaft: `RBV` keeps counting.
    Stage 2 with lag monitoring on: it trips. One sentence on what changed.
-6. **Break the frames.** In `enc-openloop.yaml`, remove `refToEncIDAtStartup`.
+6. **Trip each limit layer separately.** Set `.DHLM` to 20 and request 25 — the
+   move is rejected before it starts and `.LVIO` goes to 1; that is motorRecord.
+   Now set `.DHLM` wide open, set ecmc's limit to 20 instead
+   (`caput $(M)-CfgDHLM 20`), and command 25 again — this time the move starts
+   and ecmc interlocks it. Same apparent symptom, two different mechanisms.
+   Which PV told you which one fired?
+7. **Break the frames.** In `enc-openloop.yaml`, remove `refToEncIDAtStartup`.
    Predict what happens, then try it. Why does §4 matter?
-7. **Read the other dialect.** Open any `.ax` in `ecmccfg/examples/ESS/*/cfg/`.
+8. **Read the other dialect.** Open any `.ax` in `ecmccfg/examples/ESS/*/cfg/`.
    Map five of its `ECMC_*` variables onto their YAML equivalents. Then find one
    YAML key with no `ECMC_*` counterpart.
 
