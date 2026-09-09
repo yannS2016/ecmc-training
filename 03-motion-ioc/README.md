@@ -114,9 +114,24 @@ Hence `HW_DESC=EL7062` (not `EL7062_CSP`) and, in the axis config:
 axis:
   mode: CSV
 drive:
-  type: 0                                        # stepper, not DS402
+  type: 1                                        # DS402 enable handshake
   setpoint: ec0.s$(DRV_SID).velocitySetpoint01   # velocity, not position
 ```
+
+**`drive.type` is a second, independent axis from CSV/CSP.** It picks which
+*enable protocol* ecmc speaks (`ecmcDriveStepper`'s bare enable bit for `0`,
+or `ecmcDriveDS402`'s real `0x06`→`0x07`→`0x0F` control-word sequence for
+`1`) — not what the cyclic setpoint means. It is easy to assume `type: 0`
+("stepper") pairs with CSV and `type: 1` ("DS402") pairs with CSP, since
+that's how the upstream example presents it, but they are orthogonal. This
+EL7062 firmware runs a full DS402 enable state machine internally no matter
+which PDO mode is selected — confirmed empirically on real hardware: with
+`type: 0`, `driveStatus02` stayed frozen at `0x60` ("Switch on disabled" —
+DS402 status bits 0/1/2/6) while ecmc wrote a bare `controlWord=1`, which a
+DS402 state machine correctly ignores as not a valid transition command.
+`ecmcDriveDS402::readEntries()` (`ecmc/devEcmcSup/motion/ecmcDriveDS402.cpp`)
+is the actual source of truth for the sequence, if you want to read the code
+instead of taking this on faith.
 
 **The tradeoff, stated plainly.** The upstream best-practice README warns:
 

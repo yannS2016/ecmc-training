@@ -15,6 +15,14 @@
 # entirely in ecmc, where the real feedback is -- the firmware bug is an
 # accepted, known risk for now, not an oversight.
 #
+# drive.type is INDEPENDENT of CSV/CSP: it selects the enable handshake
+# (ecmcDriveStepper's bare enable-bit vs ecmcDriveDS402's real 0x06/0x07/0x0F
+# sequence), not what the setpoint means. This EL7062 firmware runs a real
+# DS402 state machine internally regardless of CSV/CSP, confirmed empirically
+# (driveStatus02 stuck at 0x60 "Switch on disabled" -- DS402 status bits 6/0/1/2
+# -- while ecmc wrote a bare controlWord=1, which DS402 correctly ignores).
+# Hence type: 1 below, even though this is CSV.
+#
 # Loaded by:
 #   ${ecmccfg_DIR}loadYamlAxis.cmd "FILE=./cfg/01-openloop.yaml, DEV=..., DRV_SID=..."
 #
@@ -42,7 +50,7 @@ drive:
   # 1 mm per 1048576 microsteps (64 microsteps x 16384 steps/rev on this stage).
   numerator: 1
   denominator: 1048576
-  type: 0                       # stepper, not DS402 -- CSV, not CSP
+  type: 1                       # DS402 enable handshake -- see header comment
   setpoint: ec0.s$(DRV_SID).velocitySetpoint${DRV_CH=01}
   control: ec0.s$(DRV_SID).driveControl${DRV_CH=01}
   status: ec0.s$(DRV_SID).driveStatus${DRV_CH=01}

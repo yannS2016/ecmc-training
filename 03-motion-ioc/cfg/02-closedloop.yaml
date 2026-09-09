@@ -11,6 +11,10 @@
 # own position loop, so there is nothing to keep in sync. enc-openloop.yaml
 # is no longer loaded in stage 2.
 #
+# drive.type is INDEPENDENT of CSV/CSP -- see cfg/01-openloop.yaml's header.
+# This EL7062 firmware runs a real DS402 enable state machine regardless of
+# CSV/CSP, confirmed empirically, so type: 1 below even though this is CSV.
+#
 # Loaded by:
 #   loadYamlAxis.cmd  FILE=./cfg/02-closedloop.yaml   ENC_SID=<EL5042 pos>
 # =============================================================================
@@ -33,7 +37,7 @@ epics:
 drive:
   numerator: 1
   denominator: 1048576
-  type: 0                       # stepper, not DS402 -- CSV, not CSP
+  type: 1                       # DS402 enable handshake -- see header comment
   setpoint: ec0.s$(DRV_SID).velocitySetpoint${DRV_CH=01}
   control: ec0.s$(DRV_SID).driveControl${DRV_CH=01}
   status: ec0.s$(DRV_SID).driveStatus${DRV_CH=01}
