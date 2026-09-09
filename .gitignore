@@ -38,3 +38,4 @@ stage/
 # scratch: build and bus output pasted in during a session
 error
 logs
+*.logs
