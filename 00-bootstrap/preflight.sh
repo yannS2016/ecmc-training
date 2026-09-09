@@ -151,9 +151,10 @@ check_module() {
   pass "$name at $path"
 }
 
-check_module asyn  "$(module_dir asyn)"  asyn
-check_module motor "$(module_dir motor)" motor
-check_module ecmc  "$(module_dir ecmc)"  ecmc
+check_module asyn        "$(module_dir asyn)"        asyn
+check_module motor       "$(module_dir motor)"       motor
+check_module ecmc        "$(module_dir ecmc)"        ecmc
+check_module MCoreUtils  "$(module_dir MCoreUtils)"  mcoreutils
 
 # Report which release each checkout sits on.  Both projects tag their releases
 # as a matched pair -- ecmc "v11.0.8" and ecmccfg "11.0.8" (note: ecmccfg dropped

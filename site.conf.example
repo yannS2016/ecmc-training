@@ -55,3 +55,8 @@ IOC_PREFIX=TRAIN
 ASYN_MODULE_VERSION=R4.42-1.0.0
 MOTOR_MODULE_VERSION=R6.10.1-2.6.1
 ECMC_MODULE_VERSION=
+
+# MCoreUtils -- real-time thread affinity/priority/mlock from iocsh, without
+# rebooting to change isolcpus. See ethercatmaster/REALTIME.md #5.
+#   https://github.com/epics-modules/MCoreUtils
+MCOREUTILS_MODULE_VERSION=
