@@ -25,11 +25,22 @@ with 3 slaves and no further terminals.
 
 ## Wiring
 
-- Axis 1 motor: *(fill in from the physical motor's datasheet -- type, coil
-  current in mA, coil resistance/inductance for the auto-tune. Do not guess.)*
-- Axis 1 encoder: *(fill in -- vendor/model, bits, counts/mm or counts/rev.
-  See `hardware/Encoders/ecmcEL5042-Encoder-ch1-*.cmd` for the closest match to
-  what's physically wired to EL5042 channel 1.)*
+- Axis 1 motor: bipolar stepper, wired **parallel**. Datasheet ratings
+  (parallel): 4.24 A/phase, 1.4 mH/phase (1400 uH), 0.4 Ohms/phase (400 mOhm),
+  1.8 deg/step. For safety, run well below the parallel current rating for
+  now -- `st.cmd -m I_MAX_MA=1000` (st.cmd's own default). Leave
+  `I_STDBY_MA` at its default (100). `L_COIL_UH=1400,R_COIL_MOHM=400` for
+  the `Motor-Generic-2Phase-Stepper` component (`st.cmd`'s hardcoded
+  defaults, 3050/2630, are for the PSI lab motor -- wrong for this one, must
+  override). `U_NOM_MV` was not in the datasheet excerpt we have -- confirm
+  before running the auto-tune; do not assume the 24000 mV default.
+- Axis 1 encoder: Renishaw RL26BAS050C30A, BiSS-C, 26-bit absolute, 50 nm
+  resolution, 1-10 MHz clock. Matches `st.cmd`'s own default
+  `ENC_COMP=Encoder-RLS-LA11-26bit-BISS-C` (26-bit BiSS-C) -- no override
+  needed there. `cfg/02-closedloop.yaml`'s `encoder.denominator: 4096`
+  (counts/mm) assumes a 1 mm/rev stage per its own comment; with 50 nm/count
+  that denominator is almost certainly wrong for this scale and must be
+  re-derived once the physical stage pitch is known (README exercise 1).
 - Limit switches: none wired. The EL7062 has two digital inputs per channel
   (`binaryInputs01.0`/`.1`) available if added later.
 
