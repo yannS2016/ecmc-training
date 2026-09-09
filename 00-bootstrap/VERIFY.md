@@ -37,11 +37,46 @@ opened. You should see the asyn port created and no master errors.
 **4. `ecmcReport 1` prints an object tree.** Short — there is no hardware — but
 present. That proves ecmc is linked, initialised and introspectable.
 
-Then check from another shell:
+Then check from another shell. A single `caget` only proves one PV answers;
+`camonitor` on the whole MCU-info set (loaded by `ecmcMcuInfo.db` in
+`setDiagnostics.cmd`) shows the realtime thread actually running and updating,
+which is the more useful go/no-go signal:
 
 ```bash
-caget TRAIN-BOOTSTRAP:ecmc-Error       # any ecmc PV; should return, not time out
+camonitor \
+  TRAIN-BOOTSTRAP:MCU-AppMode \
+  TRAIN-BOOTSTRAP:MCU-ErrId \
+  TRAIN-BOOTSTRAP:MCU-ErrMsg \
+  TRAIN-BOOTSTRAP:MCU-ErrRst \
+  TRAIN-BOOTSTRAP:MCU-Cmd \
+  TRAIN-BOOTSTRAP:MCU-Updated \
+  TRAIN-BOOTSTRAP:ThdRTStat_ \
+  TRAIN-BOOTSTRAP:MCU-ThdRTPrioOK \
+  TRAIN-BOOTSTRAP:MCU-ThdMemLocked \
+  TRAIN-BOOTSTRAP:MCU-ThdFrqAvg \
+  TRAIN-BOOTSTRAP:MCU-ThdLatMin \
+  TRAIN-BOOTSTRAP:MCU-ThdLatMax \
+  TRAIN-BOOTSTRAP:MCU-ThdPrdMin \
+  TRAIN-BOOTSTRAP:MCU-ThdPrdMax \
+  TRAIN-BOOTSTRAP:MCU-ThdExeMin \
+  TRAIN-BOOTSTRAP:MCU-ThdExeMax \
+  TRAIN-BOOTSTRAP:MCU-ThdSndMin \
+  TRAIN-BOOTSTRAP:MCU-ThdSndMax
 ```
+
+What to look for:
+- `MCU-Updated` incrementing and `ThdRTStat_`/`MCU-ThdRTPrioOK`/`MCU-ThdMemLocked`
+  all healthy -- the realtime thread is alive, holding real-time priority, and
+  its memory is locked (no page faults corrupting cycle timing).
+- `MCU-ThdFrqAvg` near the configured `EC_RATE` (1000 Hz here), and the
+  `ThdLat`/`ThdPrd`/`ThdExe`/`ThdSnd` Min/Max pairs stable and narrow -- these
+  are the per-cycle latency, period, execute and send-to-bus timings; a
+  master-less run has no bus I/O, so they characterize the ecmc thread itself,
+  not the EtherCAT master.
+- `MCU-ErrId` / `MCU-ErrMsg` at zero/empty, `MCU-AppMode` showing the mode set
+  by `Cfg.SetAppMode(1)`.
+
+Substitute the `TRAIN-BOOTSTRAP:` prefix for whatever `IOC=` you used.
 
 ## Troubleshooting
 
