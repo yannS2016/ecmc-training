@@ -314,6 +314,23 @@ taskset -c 2,3 ./st.cmd
 > **Do not isolate every core.** The kernel needs somewhere to run, and so do `ethercatctl`, `depmod` and
 > your own shell. Leave one core free, two on a busy host.
 
+**Iterating without a reboot.** Changing `isolated_cores` means editing `/etc/tuned/realtime-variables.conf`
+and rebooting — fine once you know the answer, painful while you're still finding it. `MCoreUtils`
+(`00-bootstrap/pin-rt.cmd`) sets CPU affinity on the running `ecmc_rt` thread from iocsh, so you can try a
+different core with no reboot and no rebuild:
+
+```
+iocshLoad("$(PIN_RT_CMD)", "CPUSET=2,3")
+mcoreThreadShow("ecmc_rt")     # confirm the affinity actually took
+```
+
+This is `sched_setaffinity`, not `isolcpus` — it pins *our* thread to core 2/3, but does not stop the
+kernel from scheduling anything else there too. Use it to narrow down a core placement quickly; take the
+final measurement (§8) with real kernel isolation from this section in place as well. `pin-rt.cmd`
+deliberately leaves scheduling policy/priority alone (`"*"` for both) — ecmc already requests its own
+`SCHED_FIFO` priority when it creates the thread (§7), and `MCoreUtils` would only fight that if it tried
+to set priority here too.
+
 **Hyper-threading:** disable it in firmware, or never place the cyclic task on the sibling of a busy core.
 Two threads sharing one physical core share its execution units — and the resulting jitter is invisible to
 every tool that merely counts logical CPUs. Check before assuming you have it:

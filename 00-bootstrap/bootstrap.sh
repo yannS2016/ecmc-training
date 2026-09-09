@@ -270,6 +270,11 @@ epicsEnvSet("ecmccfg_DB",            "$STAGE/db")
 epicsEnvSet("ecmc_DIR",              "$(module_dir ecmc)")
 $comp_line
 
+# No-reboot CPU-affinity iteration for the ecmc_rt thread (MCoreUtils). See
+# 00-bootstrap/pin-rt.cmd for usage and why it only touches affinity, not
+# scheduling policy/priority.
+epicsEnvSet("PIN_RT_CMD",            "$here/pin-rt.cmd")
+
 # Templates are loaded by bare filename, so every directory holding one must
 # be on this path.
 epicsEnvSet("EPICS_DB_INCLUDE_PATH", "$db_path")
