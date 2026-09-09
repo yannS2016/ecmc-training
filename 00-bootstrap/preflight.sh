@@ -46,6 +46,41 @@ fi
 source "$repo/site.conf"
 pass "site.conf loaded"
 
+# site.conf is gitignored on purpose (each host tweaks its own copy), which
+# means a `git pull` that adds a new key to a sites/<name>/site.conf template
+# NEVER touches your already-copied site.conf -- the key silently comes back
+# empty/unset instead of erroring. Diff against whichever template site.conf
+# looks like it was copied from (most keys in common) and warn about keys it
+# has that your site.conf does not.
+keys_of() { grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$1" | sed 's/=$//' | sort -u; }
+if compgen -G "$repo/sites/*/site.conf" >/dev/null; then
+  mine="$(keys_of "$repo/site.conf")"
+  best_template="" best_score=0 best_missing=""
+  for tmpl in "$repo"/sites/*/site.conf; do
+    tkeys="$(keys_of "$tmpl")"
+    n_tmpl=$(printf '%s\n' "$tkeys" | grep -c .)
+    [[ "$n_tmpl" -eq 0 ]] && continue
+    n_common=$(comm -12 <(printf '%s\n' "$mine") <(printf '%s\n' "$tkeys") | grep -c .)
+    score=$(( n_common * 100 / n_tmpl ))
+    if [[ "$score" -gt "$best_score" ]]; then
+      best_score=$score
+      best_template="$tmpl"
+      best_missing="$(comm -13 <(printf '%s\n' "$mine") <(printf '%s\n' "$tkeys"))"
+    fi
+  done
+  # Only warn once site.conf looks like it descends from this template (most
+  # keys already match) -- otherwise a from-scratch or site.conf.example-based
+  # config would trigger false positives against every profile in sites/.
+  if [[ -n "$best_template" && "$best_score" -ge 50 && -n "$best_missing" ]]; then
+    warn "site.conf is missing keys present in $(basename "$(dirname "$best_template")")'s template"
+    why  "This host's site.conf was likely copied before these were added:"
+    while IFS= read -r k; do
+      [[ -n "$k" ]] && why "    $k"
+    done <<< "$best_missing"
+    why  "Add them from $best_template, or diff the two directly."
+  fi
+fi
+
 # --- EPICS base -------------------------------------------------------------
 hdr "EPICS base"
 if [[ -d "${EPICS_BASE:-}" ]]; then
