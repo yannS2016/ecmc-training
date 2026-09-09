@@ -23,7 +23,9 @@ axis:
   id: ${AXIS_ID=1}
   mode: CSV
   autoEnable:
-    enableTimeout: 1.0
+    # See cfg/01-openloop.yaml's header -- 1.0s was too tight for this
+    # EL7062's real DS402 enable handshake, confirmed empirically.
+    enableTimeout: 15.0
     disableTimeout: 5.0
 
 epics:
@@ -35,8 +37,12 @@ epics:
     fieldInit: 'RTRY=0,FOFF=Frozen'
 
 drive:
+  # 200 fullsteps/rev (confirmed via SDO) x 16384 microsteps/fullstep (fixed
+  # EL7062 constant) = 3276800 counts/motor-rev -- see cfg/01-openloop.yaml's
+  # header for the full derivation. Still assumes a 1 mm/rev stage pitch;
+  # re-derive once exercise 1 gives the real value.
   numerator: 1
-  denominator: 1048576
+  denominator: 3276800
   type: 1                       # DS402 enable handshake -- see header comment
   setpoint: ec0.s$(DRV_SID).velocitySetpoint${DRV_CH=01}
   control: ec0.s$(DRV_SID).driveControl${DRV_CH=01}

@@ -33,7 +33,12 @@ axis:
   id: ${AXIS_ID=1}
   mode: CSV
   autoEnable:
-    enableTimeout: 1.0
+    # 1.0s was too tight for this EL7062's real DS402 enable handshake
+    # (multiple state transitions on real hardware) -- ecmc aborted a
+    # pending move as not-yet-enabled before the drive actually finished
+    # enabling, producing a premature internal STOP mid-move and a
+    # downstream ERROR_MON_STALL. Confirmed empirically on real hardware.
+    enableTimeout: 15.0
     disableTimeout: 5.0
 
 epics:
@@ -46,10 +51,23 @@ epics:
 
 drive:
   # CSV: ecmc sends a VELOCITY setpoint each cycle, not a position.
-  # Scaling is counts-per-unit, matching the drive's own microstep resolution:
-  # 1 mm per 1048576 microsteps (64 microsteps x 16384 steps/rev on this stage).
+  #
+  # 16384 microsteps/fullstep is a FIXED EL7062 hardware constant (confirmed
+  # via Beckhoff spec) -- not stage- or motor-specific, and NOT the same
+  # thing as "fullsteps/rev" despite the confusingly similar old comment here
+  # ("64 microsteps x 16384 steps/rev" had the two swapped: PSI's motor was
+  # 64 fullsteps/rev x 16384 microsteps/fullstep = 1048576).
+  #
+  # Our real motor: 200 fullsteps/rev (confirmed via SDO 0x8111:33 "Motor
+  # fullsteps per revolution" -- matches the 1.8 deg/step datasheet value).
+  # counts/motor-rev = 200 x 16384 = 3276800.
+  #
+  # denominator below still assumes a 1 mm/rev STAGE pitch -- that part is
+  # independent of the motor and still an unmeasured placeholder. Re-derive
+  # once exercise 1 gives you the real mm/rev: denominator = 3276800 / (mm
+  # per motor revolution of YOUR stage).
   numerator: 1
-  denominator: 1048576
+  denominator: 3276800
   type: 1                       # DS402 enable handshake -- see header comment
   setpoint: ec0.s$(DRV_SID).velocitySetpoint${DRV_CH=01}
   control: ec0.s$(DRV_SID).driveControl${DRV_CH=01}
@@ -58,7 +76,7 @@ drive:
 encoder:
   desc: Openloop
   numerator: 1
-  denominator: 1048576          # must match the drive scaling above
+  denominator: 3276800          # must match the drive scaling above
   type: 0                       # incremental
   bits: 32
   absBits: 0
