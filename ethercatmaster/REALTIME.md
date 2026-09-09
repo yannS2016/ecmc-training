@@ -633,7 +633,7 @@ record the method alongside the number or the comparison is not defensible. Fill
 | `cyclictest` idle | Max **5 µs**, Avg 2 µs, 300k cycles |
 | `cyclictest` under load | Max **9 µs**, Avg 2 µs, 300k cycles |
 | Untuned, for reference | Max 298–344 µs |
-| ecmc cycle overruns | *(next milestone — `cyclictest` measures the scheduler, not the application)* |
+| ecmc cycle overruns | See "ecmc's own numbers" below — `ThdLatMax` ~10.8 µs body, one 238.7 µs outlier per ~630 samples, **master-less** |
 | PLC figure being compared against, and how *it* was measured | *(fill in — see below)* |
 
 That last row is the one that decides whether the comparison means anything. A PLC vendor's quoted jitter
@@ -656,6 +656,63 @@ Two honest caveats on the figures above, which belong next to them whenever they
 
 ecmc's own cycle-time statistics are what ultimately matter, since they include the master, the driver and
 your PLC logic — not just the scheduler.
+
+### ecmc's own numbers, not just cyclictest
+
+`cyclictest` measures the scheduler waking an empty thread. The training IOC's own diagnostic PVs
+(`$(IOC):MCU-ThdLatMin/Max`, loaded by `ecmcMcuInfo.db` — see `00-bootstrap/VERIFY.md`) measure ecmc's real
+cyclic thread, `ecmc_rt`, doing its actual work. Filling in the placeholder above meant walking the same
+elimination this section already teaches, one more layer up — and it took a different number of steps
+than the `cyclictest` pass above did on the same host.
+
+**Caveat before the numbers: this run is master-less** (`MASTER_ID=-1`, phase 0's smoke test — no
+EtherCAT master opened, no PDO exchange, no axis or PLC computation). It measures the floor `ecmc_rt`
+itself contributes, not the cost of real bus traffic or multi-axis logic on top of it. Phase 02/03, with a
+real master and axes running, is where that gets added back in — treat everything below as a starting
+point, not the final answer.
+
+| Configuration | `ThdLatMin` | `ThdLatMax` | Sample |
+|---|---|---|---|
+| No isolation (baseline) | ~4–6 µs | ~120–143 µs | small |
+| Isolated, but whole IOC `taskset` onto the isolated cores | mean 5,909–41,130 ns | mean 127,100–139,500 ns | ~440–670 |
+| Isolated, `ecmc_rt` alone pinned there (`MCoreUtils`), deep C-states still enabled | mean 41,130 ns | mean 139,500 ns, max 270,000 ns | 670 |
+| Isolated, `ecmc_rt` alone pinned, C-states restricted to POLL/C1 | **mean 3,013 ns** | **mean 10,820 ns**, one outlier 238,700 ns | 630 (~6.3 s) |
+
+Two things this table is teaching, both already stated above in the abstract and now visible with real
+numbers:
+
+- **Placement matters before isolation does anything.** `taskset`-ing the *whole IOC* onto the isolated
+  cores put ecmc's other threads back in contention with `ecmc_rt` for the very cores meant to be
+  dedicated to it — isolation with nothing exclusive to isolate for. `MCoreUtils` (§5) fixed this without
+  a reboot: pin the bulk process to the non-isolated cores, pin only `ecmc_rt` to the isolated ones.
+- **A raised *minimum*, not just an occasional spike, is the C-state signature.** Once placement was
+  correct, `ThdLatMin` sat at a flat ~41 µs rather than a low floor with occasional excursions — paid on
+  *every* cycle, not rare ones. That distinguishes it from the scheduler/IRQ "shoulder" and SMI "far
+  outlier" categories in the histogram table above: `cpupower -c 2 idle-info` showed `C3`/`C6`/`C7s`/`C8`
+  all enabled, with exit latencies (70/85/124/200 µs) spanning exactly the observed range. With a ~1 ms
+  idle gap between `ecmc_rt`'s cycles, the `menu` governor had every reason to pick one of them.
+  `sudo cpupower -c 2,3 idle-set -D 3` (keep only `POLL`/`C1`, no reboot) took the floor from ~41 µs to a
+  flat ~3 µs.
+
+That the `cyclictest` pass earlier in this section reached 5 µs through isolation alone, with no C-state
+change recorded, while `ecmc_rt` needed one, is itself worth noting rather than glossing over: it is the
+concrete version of "`cyclictest` measures the scheduler, not the application." A synthetic 1 kHz
+sleep/wake loop and ecmc's real cyclic thread do not necessarily hit the idle governor's residency
+predictor the same way — do not assume a `cyclictest` result transfers to the application without checking.
+
+**Is this good enough?** At a 1 kHz cycle (1000 µs budget), a ~10.8 µs body is ~1% of the cycle — comfortable
+headroom for a scanning trajectory on one axis, or several axes' worth of PLC computation inside the same
+cycle. The one 238.7 µs outlier is ~24% of a single cycle, rare enough in this short sample (one in ~6.3 s)
+to not be alarming on its own, but too short a window to state a rate with confidence — the same "measure
+longer, don't eyeball it" point §8 already makes about `cyclictest`. If a longer `camonitor` capture (or
+`ecmcReport`'s own overrun counters) keeps this rare and the body tight once a real master and axes are in
+the loop, there is no need to chase it further; the goal here is smooth, deterministic motion, not a
+zero-outlier guarantee no PLC comparison would hold to either.
+
+**Not yet persistent.** `cpupower idle-set` is a runtime setting like the `MCoreUtils` pinning above — it
+does not survive a reboot. Fold it into the boot sequence (a systemd unit, or alongside the `tuned`
+`realtime` profile) once these numbers are confirmed under real load, rather than re-running it by hand
+every time.
 
 ---
 
