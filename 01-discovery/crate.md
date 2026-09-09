@@ -32,8 +32,8 @@ with 3 slaves and no further terminals.
   `I_STDBY_MA` at its default (100). `L_COIL_UH=1400,R_COIL_MOHM=400` for
   the `Motor-Generic-2Phase-Stepper` component (`st.cmd`'s hardcoded
   defaults, 3050/2630, are for the PSI lab motor -- wrong for this one, must
-  override). `U_NOM_MV` was not in the datasheet excerpt we have -- confirm
-  before running the auto-tune; do not assume the 24000 mV default.
+  override). `U_NOM_MV=24000` -- confirmed, matches `st.cmd`'s own default,
+  no override needed.
 - Axis 1 encoder: Renishaw RL26BAS050C30A, BiSS-C, 26-bit absolute, 50 nm
   resolution, 1-10 MHz clock. Matches `st.cmd`'s own default
   `ENC_COMP=Encoder-RLS-LA11-26bit-BISS-C` (26-bit BiSS-C) -- no override
