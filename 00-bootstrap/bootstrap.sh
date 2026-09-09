@@ -108,9 +108,10 @@ cat > "$app/configure/RELEASE.local" <<EOF
 
 # Module versions come from site.conf. Following the PCDS convention of naming
 # them <MODULE>_MODULE_VERSION so scripts can extract them.
-ASYN_MODULE_VERSION  = ${ASYN_MODULE_VERSION:-}
-MOTOR_MODULE_VERSION = ${MOTOR_MODULE_VERSION:-}
-ECMC_MODULE_VERSION  = ${ECMC_MODULE_VERSION:-}
+ASYN_MODULE_VERSION       = ${ASYN_MODULE_VERSION:-}
+MOTOR_MODULE_VERSION      = ${MOTOR_MODULE_VERSION:-}
+ECMC_MODULE_VERSION       = ${ECMC_MODULE_VERSION:-}
+MCOREUTILS_MODULE_VERSION = ${MCOREUTILS_MODULE_VERSION:-}
 
 # SUPPORT must match ecmc's own definition exactly: checkRelease compares
 # SUPPORT's expanded text across every RELEASE file it walks, and flags a
@@ -126,6 +127,12 @@ MOTOR      = $(module_dir motor)
 # ECMC points at the built module (for libecmc, its dbd, and libexprtkSupport)
 ECMC       = $(module_dir ecmc)
 
+# Thread affinity/priority/mlock from iocsh (mcoreThreadModify, mcoreMLock),
+# without rebooting to change isolcpus -- see ../ethercatmaster/REALTIME.md.
+# Directory is mixed-case ("MCoreUtils") on this site's module tree; module_dir
+# uses the name verbatim, so it must be called with that exact case.
+MCOREUTILS = $(module_dir MCoreUtils)
+
 # Fail early and by name, rather than leaving CHECK_RELEASE to report a path
 # with no indication of which module it belongs to.
 ifeq (\$(wildcard \$(ASYN)),)
@@ -136,6 +143,9 @@ ifeq (\$(wildcard \$(MOTOR)),)
 endif
 ifeq (\$(wildcard \$(ECMC)),)
 \$(error ECMC path not found: \$(ECMC))
+endif
+ifeq (\$(wildcard \$(MCOREUTILS)),)
+\$(error MCOREUTILS path not found: \$(MCOREUTILS))
 endif
 
 # EPICS_BASE last so it appears last in the DB, DBD, INCLUDE and LIB search paths

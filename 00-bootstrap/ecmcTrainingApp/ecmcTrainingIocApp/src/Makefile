@@ -68,10 +68,19 @@ ecmcTrainingIoc_DBD += requireStub.dbd
 # asyn.dbd or motorSupport.dbd above; base.dbd alone does not pull it in.
 ecmcTrainingIoc_DBD += system.dbd
 
+# mcoreThreadModify/mcoreThreadRuleAdd/mcoreMLock -- real-time thread affinity,
+# SCHED_FIFO priority and mlock from iocsh, without rebooting to change
+# isolcpus. Complements, does not replace, the kernel-level CPU isolation in
+# ../../../ethercatmaster/REALTIME.md -- see that doc for why. Linux-only
+# (uses sched_setaffinity/cpu_set_t directly), which is the only target this
+# course builds for anyway.
+ecmcTrainingIoc_DBD += mcoreutils.dbd
+
 ecmcTrainingIoc_LIBS += ecmc
 ecmcTrainingIoc_LIBS += motor
 ecmcTrainingIoc_LIBS += exprtkSupport
 ecmcTrainingIoc_LIBS += asyn
+ecmcTrainingIoc_LIBS += mcoreutils
 
 # ethercat and ruckig are NOT _LIBS: that tells EPICS to search for an
 # EPICS-module library under this application's own lib/<T_A>/ tree, which is
