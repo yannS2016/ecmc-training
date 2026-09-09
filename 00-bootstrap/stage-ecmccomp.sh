@@ -66,13 +66,15 @@ mkdir -p "$STAGE/db"
 
 # Components are organised by category (motors/, encoders/, drive_slaves/, ...)
 # in the source and flattened on install, exactly like ecmccfg's hardware/ tree.
+# Includes *.sh: applyComponent.cmd shells out to validateMacros.sh, which
+# lives alongside the .cmd files and must be flattened the same way.
 n=0
 while IFS= read -r -d '' f; do
   cp -p "$f" "$STAGE/${f##*/}"
   n=$((n + 1))
 done < <(find "$ECMCCOMP_SRC" \
            -path '*/.git' -prune -o \
-           \( -name '*.cmd' -o -name '*.script' \) -type f -print0)
+           \( -name '*.cmd' -o -name '*.script' -o -name '*.sh' \) -type f -print0)
 
 n_db=0
 if [[ -d "$ECMCCOMP_SRC/db" ]]; then
@@ -89,7 +91,7 @@ echo "    staged $n scripts, $n_db templates"
 # Same collision guard as ecmccfg: flattening is only safe while basenames are
 # unique.
 dupes="$(find "$ECMCCOMP_SRC" -path '*/.git' -prune -o \
-           \( -name '*.cmd' -o -name '*.script' \) -type f -print \
+           \( -name '*.cmd' -o -name '*.script' -o -name '*.sh' \) -type f -print \
          | while read -r f; do echo "${f##*/}"; done | sort | uniq -d)"
 if [[ -n "$dupes" ]]; then
   echo "ERROR: basename collisions while flattening ecmccomp:" >&2
