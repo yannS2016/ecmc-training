@@ -6,7 +6,7 @@ Surveyed: 2026-09-08   Master: 0   NIC: (per `master.txt` on the host)
 |-----|-------------|--------------|-------------|---------|-------|
 | 0   | EK1101      | 0x044d2c52   | EK1101      | —       | coupler with ID switch; 2A E-Bus |
 | 1   | EL5042      | 0x13b23052   | EL5042      | 03      | 2ch BiSS-C encoder interface |
-| 2   | EL7062-0000 | 0x1b963052   | EL7062_CSP  | 03      | 2ch stepper 48V 3A; ch1 used, ch2 unused |
+| 2   | EL7062-0000 | 0x1b963052   | EL7062_CSP  | 03      | 2ch stepper 48V 3A; ch2 used, ch1 unused |
 
 All three verified against `$ECMCCFG_SRC/hardware/**/ecmc<HW_DESC>.cmd`'s
 `ECMC_EC_PRODUCT_ID` -- exact match, no variant surprises. Vendor ID `0x2`

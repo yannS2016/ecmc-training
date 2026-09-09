@@ -13,6 +13,9 @@
 # Override bus positions if yours differ:
 #   ./st.cmd -m DRV_POS=2,ENC_POS=1
 #
+# Override which EL7062 channel the motor is wired to (default: ch1):
+#   ./st.cmd -m DRV_CH=02,CH_ID=2,CH_ID_OTHER=1
+#
 # SAFETY: this moves a motor.
 #   * Set I_MAX_MA / I_STDBY_MA from YOUR motor's datasheet before first run.
 #   * This crate has no digital input terminal. Unless you have wired limit
@@ -56,16 +59,20 @@ $(SCRIPTEXEC) ${ecmccfg_DIR}addSlave.cmd, "SLAVE_ID=$(DRV_POS=2), HW_DESC=EL7062
 
 # Motor electrical parameters. CHANGE THESE FOR YOUR MOTOR -- current too high
 # cooks the windings, too low stalls under load.
-$(SCRIPTEXEC) ${ecmccfg_DIR}applyComponent.cmd, "COMP=Motor-Generic-2Phase-Stepper, CH_ID=1, MACROS='I_MAX_MA=$(I_MAX_MA=1000),I_STDBY_MA=$(I_STDBY_MA=100),U_NOM_MV=$(U_NOM_MV=24000),L_COIL_UH=$(L_COIL_UH=3050),R_COIL_MOHM=$(R_COIL_MOHM=2630)'"
+#
+# CH_ID / CH_ID_OTHER select which of the EL7062's two channels the motor is
+# actually wired to (default: motor on ch1, ch2 unused). Override BOTH together
+# if yours differs, e.g. -m CH_ID=2,CH_ID_OTHER=1,DRV_CH=02 for a motor on ch2.
+$(SCRIPTEXEC) ${ecmccfg_DIR}applyComponent.cmd, "COMP=Motor-Generic-2Phase-Stepper, CH_ID=$(CH_ID=1), MACROS='I_MAX_MA=$(I_MAX_MA=1000),I_STDBY_MA=$(I_STDBY_MA=100),U_NOM_MV=$(U_NOM_MV=24000),L_COIL_UH=$(L_COIL_UH=3050),R_COIL_MOHM=$(R_COIL_MOHM=2630)'"
 
 # Drive current/velocity loop gains. Get these from the EL7062 auto-tune in the
 # expert panel (needs ENG_MODE=1), then paste the MACROS string it gives you.
-$(SCRIPTEXEC) ${ecmccfg_DIR}applyComponent.cmd, "COMP=Drive-Generic-Ctrl-Params, CH_ID=1, MACROS='$(DRV_CTRL_MACROS=L_COIL_UH=3100,R_COIL_MOHM=2620,I_TI=12,I_KP=59,V_TI=150,V_KP=176,P_KP=10)'"
+$(SCRIPTEXEC) ${ecmccfg_DIR}applyComponent.cmd, "COMP=Drive-Generic-Ctrl-Params, CH_ID=$(CH_ID=1), MACROS='$(DRV_CTRL_MACROS=L_COIL_UH=3100,R_COIL_MOHM=2620,I_TI=12,I_KP=59,V_TI=150,V_KP=176,P_KP=10)'"
 
-# Channel 2 is unused. ecmc verifies that every drive channel linked to motion
-# received SDO settings, and refuses to start otherwise -- so an unused channel
-# must be declared unused explicitly.
-$(SCRIPTEXEC) ${ecmccfg_DIR}applyComponent.cmd, "COMP=Generic-Ch-Not-Used, CH_ID=2"
+# The other channel is unused. ecmc verifies that every drive channel linked to
+# motion received SDO settings, and refuses to start otherwise -- so an unused
+# channel must be declared unused explicitly.
+$(SCRIPTEXEC) ${ecmccfg_DIR}applyComponent.cmd, "COMP=Generic-Ch-Not-Used, CH_ID=$(CH_ID_OTHER=2)"
 epicsEnvSet("DRV_SID", "${ECMC_EC_SLAVE_NUM}")
 
 # ---------------------------------------------------------------------------
@@ -86,13 +93,14 @@ ecmcEpicsEnvSetCalcTernary(ECMC_STAGE1, "$(STAGE=1)==1", "", "#- ")
 ecmcEpicsEnvSetCalcTernary(ECMC_STAGE2, "$(STAGE=1)==2", "", "#- ")
 
 # --- Stage 1: one encoder, the drive's own step counter ---
-$(ECMC_STAGE1)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlAxis.cmd, "FILE=./cfg/01-openloop.yaml, DEV=${DEV}, AX_NAME=$(AX_NAME=M1), AXIS_ID=1, DRV_SID=${DRV_SID}, DRV_CH=01"
+$(ECMC_STAGE1)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlAxis.cmd, "FILE=./cfg/01-openloop.yaml, DEV=${DEV}, AX_NAME=$(AX_NAME=M1), AXIS_ID=1, DRV_SID=${DRV_SID}, DRV_CH=$(DRV_CH=01)"
 
 # --- Stage 2: BiSS-C primary, then the step counter as CSP drive encoder ---
 # Order matters. The axis (and its encoder 1) must exist before a second
-# encoder can be attached to it.
-$(ECMC_STAGE2)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlAxis.cmd, "FILE=./cfg/02-closedloop.yaml, DEV=${DEV}, AX_NAME=$(AX_NAME=M1), AXIS_ID=1, DRV_SID=${DRV_SID}, DRV_CH=01, ENC_SID=${ENC_SID}, ENC_CH=01, ABS_OFFSET=$(ABS_OFFSET=0)"
-$(ECMC_STAGE2)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlEnc.cmd,  "FILE=./cfg/enc-openloop.yaml, DEV=${DEV}, ENC_SID=${DRV_SID}, ENC_CH=01"
+# encoder can be attached to it. ENC_CH here is the drive's OWN channel (the
+# step counter lives inside the EL7062), so it must match DRV_CH, not ENC_POS.
+$(ECMC_STAGE2)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlAxis.cmd, "FILE=./cfg/02-closedloop.yaml, DEV=${DEV}, AX_NAME=$(AX_NAME=M1), AXIS_ID=1, DRV_SID=${DRV_SID}, DRV_CH=$(DRV_CH=01), ENC_SID=${ENC_SID}, ENC_CH=01, ABS_OFFSET=$(ABS_OFFSET=0)"
+$(ECMC_STAGE2)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlEnc.cmd,  "FILE=./cfg/enc-openloop.yaml, DEV=${DEV}, ENC_SID=${DRV_SID}, ENC_CH=$(DRV_CH=01)"
 
 # ---------------------------------------------------------------------------
 # 4. Diagnostics
