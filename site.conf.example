@@ -53,7 +53,11 @@ IOC_PREFIX=TRAIN
 # PCDS convention. Leave a version empty if that module sits flat directly under
 # $EPICS_MODULES instead.
 ASYN_MODULE_VERSION=R4.42-1.0.0
-MOTOR_MODULE_VERSION=R6.10.1-2.6.1
+# ESS's motor fork, not stock motor: ecmcMotorRecord.template writes ACCS and
+# SPAM fields that stock motorRecord.dbd doesn't define -- "Record ... does
+# not have a field" at boot otherwise. Confirmed built against this ecmc and
+# running.
+MOTOR_MODULE_VERSION=R6.9-ess-0.0.5
 ECMC_MODULE_VERSION=
 
 # MCoreUtils -- real-time thread affinity/priority/mlock from iocsh, without

@@ -40,7 +40,9 @@
 SUPPORT = $(EPICS_MODULES)
 
 ASYN_MODULE_VERSION = R4.42-1.0.0
-MOTOR_MODULE_VERSION = R6.10.1-2.6.1
+# ESS's motor fork, not stock motor -- ecmcMotorRecord.template needs its
+# ACCS/SPAM fields. ecmc has been built and runs against this version.
+MOTOR_MODULE_VERSION = R6.9-ess-0.0.5
 
 ASYN     = $(EPICS_MODULES)/asyn/$(ASYN_MODULE_VERSION)
 MOTOR    = $(EPICS_MODULES)/motor/$(MOTOR_MODULE_VERSION)
