@@ -320,9 +320,13 @@ and rebooting — fine once you know the answer, painful while you're still find
 different core with no reboot and no rebuild:
 
 ```
-iocshLoad("$(PIN_RT_CMD)", "CPUSET=2,3")
+iocshLoad("$(PIN_RT_CMD)", "CPUSET=2-3")
 mcoreThreadShow("ecmc_rt")     # confirm the affinity actually took
 ```
+
+> **Use `2-3`, not `2,3`.** `iocshLoad`'s macro string splits on commas to separate multiple `KEY=value`
+> pairs, so `"CPUSET=2,3"` parses as `CPUSET=2` plus a stray, invalid `3` that is silently dropped —
+> `mcoreThreadShow` will then report a cpuset of just `2`. A dash range has no comma to collide with.
 
 This is `sched_setaffinity`, not `isolcpus` — it pins *our* thread to core 2/3, but does not stop the
 kernel from scheduling anything else there too. Use it to narrow down a core placement quickly; take the

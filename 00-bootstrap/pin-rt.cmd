@@ -12,10 +12,15 @@
 # from st.cmd or interactively at the epics> prompt. Re-run any time to move
 # it: no reboot, no rebuild, just a different CPUSET.
 #
-#   iocshLoad("$(PIN_RT_CMD)", "CPUSET=2,3")
+#   iocshLoad("$(PIN_RT_CMD)", "CPUSET=2-3")
 #
 # CPUSET is an MCoreUtils cpuset spec: a comma/dash list of CPU numbers, e.g.
-# "2,3" or "2-3".
+# "2,3" or "2-3" -- but use the DASH form when passing it through iocshLoad's
+# macro string. iocshLoad splits that string on commas to separate multiple
+# KEY=value pairs, so "CPUSET=2,3" is parsed as "CPUSET=2" plus a stray,
+# invalid "3" that gets silently dropped -- mcoreThreadShow will then report
+# a cpuset of just "2", not the "2,3" you asked for. A dash range has no
+# comma to collide with.
 #
 # IMPORTANT: this does NOT isolate the core from the rest of the kernel --
 # see ../ethercatmaster/REALTIME.md #5 for that. sched_setaffinity only pins
