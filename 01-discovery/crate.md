@@ -1,0 +1,43 @@
+# Crate inventory
+
+Surveyed: 2026-09-08   Master: 0   NIC: (per `master.txt` on the host)
+
+| Pos | Terminal    | Product code | HW_DESC     | Used in | Notes |
+|-----|-------------|--------------|-------------|---------|-------|
+| 0   | EK1101      | 0x044d2c52   | EK1101      | —       | coupler with ID switch; 2A E-Bus |
+| 1   | EL5042      | 0x13b23052   | EL5042      | 03      | 2ch BiSS-C encoder interface |
+| 2   | EL7062-0000 | 0x1b963052   | EL7062_CSP  | 03      | 2ch stepper 48V 3A; ch1 used, ch2 unused |
+
+All three verified against `$ECMCCFG_SRC/hardware/**/ecmc<HW_DESC>.cmd`'s
+`ECMC_EC_PRODUCT_ID` -- exact match, no variant surprises. Vendor ID `0x2`
+(Beckhoff) on all three.
+
+All slaves reported `PREOP` with no IOC running -- correct, not a fault (see
+README.md §2). Distributed clocks present and enabled on every slave (64-bit),
+not yet used by any config in this course.
+
+## Topology
+
+Physical cable order matches logical bus position (0 -> 1 -> 2), confirmed via
+`slaves-v.txt`'s port table: slave 0 port 1 (EBUS) -> slave 1; slave 1 port 1
+(EBUS) -> slave 2. Slave 2's port 1 is down/closed -- end of chain, as expected
+with 3 slaves and no further terminals.
+
+## Wiring
+
+- Axis 1 motor: *(fill in from the physical motor's datasheet -- type, coil
+  current in mA, coil resistance/inductance for the auto-tune. Do not guess.)*
+- Axis 1 encoder: *(fill in -- vendor/model, bits, counts/mm or counts/rev.
+  See `hardware/Encoders/ecmcEL5042-Encoder-ch1-*.cmd` for the closest match to
+  what's physically wired to EL5042 channel 1.)*
+- Limit switches: none wired. The EL7062 has two digital inputs per channel
+  (`binaryInputs01.0`/`.1`) available if added later.
+
+## Gaps
+
+- No analog input terminal -> phase 02 (`02-daq-ioc`) cannot run as written.
+  Deferred for now -- proceeding straight to phase 03 (motion) per current
+  priority (real bus/PDO traffic for the REALTIME.md measurement), not
+  skipped permanently.
+- No digital I/O terminal -> no external switch feed; limit-switch exercises
+  in phase 03 use the EL7062's own inputs only, when wired.
