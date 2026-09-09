@@ -48,14 +48,16 @@ $(SCRIPTEXEC) ${ecmccfg_DIR}applyComponent.cmd, "COMP=$(ENC_COMP=Encoder-RLS-LA1
 epicsEnvSet("ENC_SID", "${ECMC_EC_SLAVE_NUM}")
 
 # ---------------------------------------------------------------------------
-# The stepper terminal -- note HW_DESC=EL7062_CSP, not EL7062.
+# The stepper terminal -- note HW_DESC=EL7062, not EL7062_CSP.
 #
-# The EL7062 has a FIRMWARE BUG in CSV (velocity) mode: on every disable, the
-# open-loop counter jumps to the nearest full turn. Beckhoff have confirmed it;
-# a fix is not expected before 2026. So this terminal must run in CSP
-# (position) mode. See README section 3 -- this is not a style choice.
+# CSV, not CSP: CSP only makes sense when the drive closes its own position
+# loop against a shaft-mounted encoder. Ours (EL5042) measures the LOAD, not
+# the shaft, so ecmc closes the loop itself and sends velocity setpoints.
+# See cfg/01-openloop.yaml's header and README section 3 for the tradeoff --
+# the EL7062 has a confirmed CSV firmware bug (open-loop counter jumps to the
+# nearest full turn on every disable); accepted as a known risk for now.
 # ---------------------------------------------------------------------------
-$(SCRIPTEXEC) ${ecmccfg_DIR}addSlave.cmd, "SLAVE_ID=$(DRV_POS=2), HW_DESC=EL7062_CSP"
+$(SCRIPTEXEC) ${ecmccfg_DIR}addSlave.cmd, "SLAVE_ID=$(DRV_POS=2), HW_DESC=EL7062"
 
 # Motor electrical parameters. CHANGE THESE FOR YOUR MOTOR -- current too high
 # cooks the windings, too low stalls under load.
@@ -82,9 +84,9 @@ $(SCRIPTEXEC) ${ecmccfg_DIR}applyConfig.cmd
 # ---------------------------------------------------------------------------
 # 3. Create the axis
 #
-# Both stages are YAML. The classic .ax dialect cannot express this hardware:
-# there is no ECMC_* variable for useAsCSPDrvEnc, which CSP requires.
-# README section 7 explains why, and what that says about the two dialects.
+# Both stages are YAML -- README section 7 explains why, and what that says
+# about the two dialects (the classic .ax dialect can't express a CSP drive
+# with a load-side primary encoder, the case that first forced this choice).
 # ---------------------------------------------------------------------------
 epicsEnvSet("DEV", "$(IOC)")
 
@@ -94,12 +96,8 @@ ecmcEpicsEnvSetCalcTernary(ECMC_STAGE2, "$(STAGE=1)==2", "", "#- ")
 # --- Stage 1: one encoder, the drive's own step counter ---
 $(ECMC_STAGE1)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlAxis.cmd, "FILE=./cfg/01-openloop.yaml, DEV=${DEV}, AX_NAME=$(AX_NAME=M1), AXIS_ID=1, DRV_SID=${DRV_SID}, DRV_CH=$(DRV_CH=02)"
 
-# --- Stage 2: BiSS-C primary, then the step counter as CSP drive encoder ---
-# Order matters. The axis (and its encoder 1) must exist before a second
-# encoder can be attached to it. ENC_CH here is the drive's OWN channel (the
-# step counter lives inside the EL7062), so it must match DRV_CH, not ENC_POS.
+# --- Stage 2: BiSS-C is the only encoder -- see cfg/02-closedloop.yaml header ---
 $(ECMC_STAGE2)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlAxis.cmd, "FILE=./cfg/02-closedloop.yaml, DEV=${DEV}, AX_NAME=$(AX_NAME=M1), AXIS_ID=1, DRV_SID=${DRV_SID}, DRV_CH=$(DRV_CH=02), ENC_SID=${ENC_SID}, ENC_CH=01, ABS_OFFSET=$(ABS_OFFSET=0)"
-$(ECMC_STAGE2)$(SCRIPTEXEC) ${ecmccfg_DIR}loadYamlEnc.cmd,  "FILE=./cfg/enc-openloop.yaml, DEV=${DEV}, ENC_SID=${DRV_SID}, ENC_CH=$(DRV_CH=02)"
 
 # ---------------------------------------------------------------------------
 # 4. Diagnostics

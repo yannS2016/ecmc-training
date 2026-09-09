@@ -1,29 +1,23 @@
 # =============================================================================
 # Stage 2 -- closed loop on the BiSS-C absolute encoder
 #
-# TWO encoders, and understanding why is the whole point of this stage:
+# ONE encoder: the RLS BiSS-C absolute linear scale on the EL5042. Measures
+# the LOAD. ecmc closes the position loop against it directly and sends a
+# VELOCITY setpoint to the drive (CSV, not CSP) -- see README section 3 and
+# cfg/01-openloop.yaml's header. There used to be a second "drive-frame"
+# encoder here (the EL7062's own internal counter, flagged useAsCSPDrvEnc)
+# to keep the drive's own CSP position loop in the same coordinate system as
+# ecmc's setpoints. CSV doesn't have that problem -- the drive never runs its
+# own position loop, so there is nothing to keep in sync. enc-openloop.yaml
+# is no longer loaded in stage 2.
 #
-#   encoder 1 (here)             RLS BiSS-C absolute linear scale on the EL5042.
-#                                Measures the LOAD. Primary encoder: this is what
-#                                ecmc controls to and what the motor record reads.
-#
-#   encoder 2 (enc-openloop.yaml)  EL7062 internal microstep counter.
-#                                Measures the MOTOR. Flagged useAsCSPDrvEnc so the
-#                                drive's own CSP loop stays in a known coordinate
-#                                system.
-#
-# The two live in different coordinate systems -- one is the scale's absolute
-# frame, the other counts microsteps from power-on. Keeping both is not
-# redundancy, it is what makes centralised position control possible in CSP.
-#
-# Loaded by TWO calls, in this order:
+# Loaded by:
 #   loadYamlAxis.cmd  FILE=./cfg/02-closedloop.yaml   ENC_SID=<EL5042 pos>
-#   loadYamlEnc.cmd   FILE=./cfg/enc-openloop.yaml    ENC_SID=<EL7062 pos>
 # =============================================================================
 
 axis:
   id: ${AXIS_ID=1}
-  mode: CSP
+  mode: CSV
   autoEnable:
     enableTimeout: 1.0
     disableTimeout: 5.0
@@ -39,8 +33,8 @@ epics:
 drive:
   numerator: 1
   denominator: 1048576
-  type: 1
-  setpoint: ec0.s$(DRV_SID).positionSetpoint${DRV_CH=01}
+  type: 0                       # stepper, not DS402 -- CSV, not CSP
+  setpoint: ec0.s$(DRV_SID).velocitySetpoint${DRV_CH=01}
   control: ec0.s$(DRV_SID).driveControl${DRV_CH=01}
   status: ec0.s$(DRV_SID).driveStatus${DRV_CH=01}
 

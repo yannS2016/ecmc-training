@@ -6,7 +6,7 @@
 |---|---|---|
 | 0 | EK1101 | coupler |
 | 1 | EL5042 | BiSS-C absolute encoder interface |
-| 2 | EL7062-0000 | 2ch stepper output stage, 48 V 3 A (ch1 used) |
+| 2 | EL7062-0000 | 2ch stepper output stage, 48 V 3 A (ch2 used) |
 
 Plus a **fourth repository**: `ecmccomp` (§2). Phase 03 cannot be configured
 without it.
@@ -39,7 +39,7 @@ cd 03-motion-ioc
 | | Config | Feedback | Protection |
 |---|---|---|---|
 | 1 | `cfg/01-openloop.yaml` | EL7062 microstep counter | none — counts commands, not reality |
-| 2 | `cfg/02-closedloop.yaml` + `cfg/enc-openloop.yaml` | BiSS-C absolute scale | following error, soft limits |
+| 2 | `cfg/02-closedloop.yaml` | BiSS-C absolute scale | following error, soft limits |
 
 ---
 
@@ -80,7 +80,7 @@ The three components this phase applies:
 |---|---|
 | `Motor-Generic-2Phase-Stepper` | coil current, nominal voltage, coil L and R |
 | `Drive-Generic-Ctrl-Params` | current and velocity loop gains inside the drive |
-| `Generic-Ch-Not-Used` | declares channel 2 unused |
+| `Generic-Ch-Not-Used` | declares channel 1 unused (this crate's motor is on ch2) |
 
 That last one is not optional. ecmc verifies that every drive channel linked to
 motion received SDO settings and **refuses to start** otherwise, so an unused
@@ -88,63 +88,76 @@ channel must be declared explicitly.
 
 ---
 
-## 3. CSP, not CSV — and why you have no choice
+## 3. CSV, not CSP — because the encoder is on the load, not the shaft
 
-A stepper terminal can normally be driven two ways:
+A stepper terminal can be driven two ways:
 
 - **CSV** (cyclic synchronous velocity) — ecmc sends a velocity each cycle and
   closes the position loop itself.
 - **CSP** (cyclic synchronous position) — ecmc sends a position each cycle and
   the drive closes its own loop.
 
-For the EL7062 this is decided for you. From the upstream best-practice README:
+CSP only makes sense when the drive's own position loop closes against a
+**shaft-mounted** encoder — the drive needs a feedback signal in its own
+frame to control to. Ours (the RLS BiSS-C scale on the EL5042) measures the
+**load**, not the shaft. Forcing CSP here means ecmc's setpoints and the
+drive's internal loop live in two different, only loosely-related coordinate
+frames, which is exactly why an earlier version of this course needed a
+second "drive-frame" encoder (`useAsCSPDrvEnc`, §4 below in its old form)
+just to keep the two in sync. With CSV, the drive never runs a position loop
+at all — ecmc closes it directly against the real feedback, and that whole
+problem disappears.
 
-> The EL7062 has a firmware bug when running in CSV mode: at each disable the
-> open-loop counter jumps to closest full turn. Therefore, EL7062 must run in
-> **CSP** mode. Beckhoff has confirmed the bug and it will be fixed, but earliest
-> sometime in 2026.
-
-Hence `HW_DESC=EL7062_CSP` and, in the axis config:
+Hence `HW_DESC=EL7062` (not `EL7062_CSP`) and, in the axis config:
 
 ```yaml
 axis:
-  mode: CSP
+  mode: CSV
 drive:
-  type: 1                                    # DS402, not stepper type 0
-  setpoint: ec0.s$(DRV_SID).positionSetpoint01   # position, not velocity
+  type: 0                                        # stepper, not DS402
+  setpoint: ec0.s$(DRV_SID).velocitySetpoint01   # velocity, not position
 ```
 
+**The tradeoff, stated plainly.** The upstream best-practice README warns:
+
+> The EL7062 has a firmware bug when running in CSV mode: at each disable the
+> open-loop counter jumps to closest full turn. Beckhoff has confirmed the bug
+> and it will be fixed, but earliest sometime in 2026.
+
+This course accepts that bug as a **known, bounded risk** rather than switch
+to CSP: it only fires on disable, and matters far less to an open-loop step
+counter (stage 1) or a load-side absolute encoder that isn't affected by the
+motor-side jump at all (stage 2) than getting the control architecture right
+does. If your application disables/enables frequently and that jump is
+unacceptable, CSP with a shaft-mounted encoder is the documented alternative
+— but then treat the load-side BiSS-C purely as a read-only check, not as
+what the drive closes on.
+
 **The lesson beyond this terminal:** the `HW_DESC` you need is not always the
-part number on the label. Firmware quirks, revisions and operating modes all
-change which ecmccfg description applies. Phase 01's identity check tells you the
-terminal is what you declared — it cannot tell you the declaration is *right*.
+part number on the label, and neither is the "safe default" mode always the
+right one for your physical setup. Firmware quirks, revisions, operating
+modes, and *where the encoder actually lives* all change which configuration
+applies. Phase 01's identity check tells you the terminal is what you
+declared — it cannot tell you the declaration is *right*.
 
 ---
 
-## 4. Two encoders, and why
+## 4. One encoder, on purpose
 
-Stage 2 configures two, and this is the part most worth understanding.
+Stage 2 configures exactly one: the RLS BiSS-C absolute scale on the EL5042.
 
 | | Measures | Frame | Role |
 |---|---|---|---|
-| Encoder 1 — BiSS-C | the **load** | absolute, from the scale | primary: what ecmc controls to and the motor record reads |
-| Encoder 2 — step counter | the **motor** | incremental, from power-on | `useAsCSPDrvEnc`: the frame the drive's own loop closes in |
+| Encoder 1 — BiSS-C | the **load** | absolute, from the scale | primary and only: what ecmc controls to and the motor record reads |
 
-In CSP the drive runs a position loop against its internal counter, while ecmc
-issues setpoints in the scale's coordinates. Those are different coordinate
-systems. Unless ecmc knows about both, the two disagree and the axis will not
-settle.
-
-Two settings tie them together, both in `cfg/enc-openloop.yaml`:
-
-```yaml
-useAsCSPDrvEnc: 1              # this is the encoder the drive closes on
-homing:
-  refToEncIDAtStartup: 1       # seed it from encoder 1 at startup, no motion
-```
-
-Load order matters: `loadYamlAxis.cmd` first (creating the axis and encoder 1),
-then `loadYamlEnc.cmd` to attach encoder 2.
+With CSV, the drive never runs a position loop of its own, so there is no
+second coordinate frame to keep in sync, no `useAsCSPDrvEnc`, and no
+`refToEncIDAtStartup`. If you ever switch this terminal to CSP instead (§3),
+that changes: a CSP drive closes its own loop against *its own* counter, and
+you would need to bring that counter back in as a second encoder purely to
+keep the drive's frame and ecmc's setpoints from disagreeing — exactly the
+`useAsCSPDrvEnc` mechanism this course used before moving to CSV. Loaded by
+a single `loadYamlAxis.cmd` call — no second `loadYamlEnc.cmd` needed.
 
 ---
 
@@ -191,14 +204,15 @@ denominator: 4096     # ... per 4096 BiSS-C counts
 The step counter and the drive use `1 / 1048576` (microsteps per mm). **All three
 must describe the same physical unit** or the loop fights itself.
 
-**2. A drive** — how do I move? In CSP, a position setpoint plus a control word.
+**2. A drive** — how do I move? In CSV, a velocity setpoint plus a control word.
 
 **3. A trajectory generator** — where should I be *now*? `type: 1` is ruckig
 jerk-limited; `0` is trapezoidal.
 
 **4. A controller** — closes ecmc's loop on following error. In stage 1 the gains
-are zero on purpose: feedback *is* the setpoint, so there is nothing to correct.
-Stage 2 makes it real.
+are zero on purpose: the only feedback is the drive's own step counter, which
+just tracks commanded steps, so trajectory velocity passes straight through
+with nothing to correct. Stage 2 makes it real, against the BiSS-C scale.
 
 **5. Monitoring** — following error, at-target, velocity, limits, soft limits.
 
@@ -207,12 +221,14 @@ Stage 2 makes it real.
 ## 7. Why both configs are YAML
 
 Phase 03 was originally going to teach `.ax` and YAML side by side. This hardware
-settled the question:
+settled the question, even though the specific setup below (CSV, §3) no longer
+needs the mechanism that first proved the point:
 
 **`useAsCSPDrvEnc` and `refToEncIDAtStartup` have no `.ax` equivalent.** They are
 not among the ~89 `ECMC_*` variables that `addAxis.cmd` consumes. The classic
-dialect *cannot express this configuration at all* — and it is not exotic, it is
-what a mainstream Beckhoff stepper terminal requires.
+dialect *cannot express a CSP drive with a load-side primary encoder at all* —
+and that is not an exotic case, it is what you would hit running this same
+Beckhoff stepper terminal in CSP instead of the CSV this course settled on.
 
 So:
 
@@ -333,12 +349,12 @@ made necessary, is in the header comment of
 
 | Symptom | Cause |
 |---|---|
-| IOC won't start, SDO complaint about ch2 | missing `Generic-Ch-Not-Used` for channel 2 |
+| IOC won't start, SDO complaint about a channel | missing `Generic-Ch-Not-Used` for the unused channel (ch1, here) |
 | IOC won't start, `ecmccomp_DIR` not set | `ECMCCOMP_SRC` missing from `site.conf` (§2) |
 | Won't move either direction, no error | limits read "at limit" — polarity, or `ONE.0` not set |
 | `CNEN` goes 1 then 0 | drive not ready — check status word bits |
-| Position jumps on disable | you are in CSV mode — must be CSP (§3) |
-| Axis never settles, hunts | the two encoder frames disagree — check `useAsCSPDrvEnc` and `refToEncIDAtStartup` |
+| Position jumps to nearest full turn on disable | the known CSV firmware bug (§3) — accepted risk, not a misconfiguration |
+| Axis never settles, hunts | controller gains too high for stage 2 — start from `Kp: 0` (exercise 4) |
 | Moves 256× too far | scaling: microsteps per rev is not what you assumed |
 | Position right at power-on but wrong absolute | `absOffset` not derived for your stage (§5) |
 | Raised `.DHLM` but the axis still stops short | ecmc's own soft limit stopped it; the two layers are independent (§9). Check `M1-CfgDHLM-RB` |
@@ -368,8 +384,11 @@ Start at `M1-ErrId`; `ecmcReport 3` dumps the object tree.
    (`caput $(M)-CfgDHLM 20`), and command 25 again — this time the move starts
    and ecmc interlocks it. Same apparent symptom, two different mechanisms.
    Which PV told you which one fired?
-7. **Break the frames.** In `enc-openloop.yaml`, remove `refToEncIDAtStartup`.
-   Predict what happens, then try it. Why does §4 matter?
+7. **See what CSP would have cost.** Switch `HW_DESC` back to `EL7062_CSP`,
+   set `axis.mode: CSP` and `drive.type: 1`/`positionSetpoint01` in
+   `cfg/01-openloop.yaml`, and try stage 1. Predict why the axis won't settle
+   with only a load-side encoder and no `useAsCSPDrvEnc` — then look at git
+   history for this file to see how this course originally solved it.
 8. **Read the other dialect.** Open any `.ax` in `ecmccfg/examples/ESS/*/cfg/`.
    Map five of its `ECMC_*` variables onto their YAML equivalents. Then find one
    YAML key with no `ECMC_*` counterpart.
@@ -378,7 +397,8 @@ Start at `M1-ErrId`; `ecmcReport 3` dumps the object tree.
 
 - An axis that jogs and positions to a measured target, closed on the scale.
 - Correct absolute position at power-on with no homing move.
-- You can explain why this terminal must run CSP, and what breaks otherwise.
+- You can explain why this terminal runs CSV here despite the firmware bug,
+  and when CSP would actually be the right call instead.
 - You can explain why two encoders are configured and what ties their frames.
 - You can state the trade-off between `.ax` and YAML, with a concrete example of
   something only one can express.
